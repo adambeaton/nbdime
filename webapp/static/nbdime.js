@@ -243,8 +243,8 @@
             }
         }
     };
-    
-    
+
+
     // This is the list of all cells
     function elt_diff_cells(rows) {
         return elt("ul", rows, "nbdime-cells"); // nbdiff-cells

@@ -8,7 +8,7 @@ import os
 import json
 from argparse import ArgumentParser
 from six import string_types
-from tornado import ioloop, web
+from tornado import ioloop, web, escape
 import nbformat
 import nbdime
 
@@ -39,7 +39,7 @@ class NbdimeApiHandler(web.RequestHandler):
 
     def get_notebook_argument(self, argname):
         # Assuming a request on the form "{'argname':arg}"
-        body = json.loads(self.request.body)
+        body = json.loads(escape.to_unicode(self.request.body))
         arg = body[argname]
 
         # Currently assuming arg is a filename relative to
@@ -103,7 +103,7 @@ class ApiMergeHandler(NbdimeApiHandler):
         try:
             merged, lco, rco = nbdime.merge_notebooks(base_nb, local_nb, remote_nb)
         except Exception as e:
-            raise web.HTTPError(400, "Error while attempting to merge documents.")
+            raise web.HTTPError(400, "Error while attempting to merge documents: %s" % e)
 
         data = {
             "base": base_nb,
@@ -124,7 +124,7 @@ class ApiMergeStoreHandler(NbdimeApiHandler):
             raise web.HTTPError(400, "Server does not accept storing merge result.")
         path = os.path.join(self.params["cwd"], fn)
 
-        body = json.loads(self.request.body)
+        body = json.loads(escape.to_unicode(self.request.body))
         merged_nb = body["merged"]
 
         with open(path, "w") as f:
