@@ -143,7 +143,7 @@
         console.log("Store merge request:", data);
     }
 
-    function on_merge_request_failed() {
+    function on_store_merge_request_failed() {
         console.log("Store merge request failed.");
     }
 
