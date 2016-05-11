@@ -9,3 +9,4 @@ htmlcov
 .cache
 
 .spyderproject
+webapp/static/node_modules/
