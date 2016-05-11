@@ -3,20 +3,18 @@
   <head>
     <meta charset="utf-8">
 
-    <!-- Copied from https://cdnjs.cloudflare.com/ajax/libs/diff_match_patch/20121119/diff_match_patch.js -->
-    <script src="{{ static_url("diff_match_patch.js") }}"></script>
+    <link rel="stylesheet" href="{{ static_url("node_modules/codemirror/lib/codemirror.css") }}">
+    <script src="{{ static_url("node_modules/codemirror/lib/codemirror.js") }}"></script>
 
-    <link rel="stylesheet" href="{{ static_url("CodeMirror/lib/codemirror.css") }}">
-    <script src="{{ static_url("CodeMirror/lib/codemirror.js") }}"></script>
+    <script src="{{ static_url("node_modules/codemirror/mode/python/python.js") }}"></script>
+    <script src="{{ static_url("node_modules/codemirror/mode/javascript/javascript.js") }}"></script>
 
-    <script src="{{ static_url("CodeMirror/mode/python/python.js") }}"></script>
-    <script src="{{ static_url("CodeMirror/mode/javascript/javascript.js") }}"></script>
+    <script src="{{ static_url("node_modules/codemirror/addon/selection/active-line.js") }}"></script>
+    <script src="{{ static_url("node_modules/codemirror/addon/edit/matchbrackets.js") }}"></script>
+    <script src="{{ static_url("node_modules/codemirror/addon/display/autorefresh.js") }}"></script>
 
-    <script src="{{ static_url("CodeMirror/addon/selection/active-line.js") }}"></script>
-    <script src="{{ static_url("CodeMirror/addon/edit/matchbrackets.js") }}"></script>
-
-    <link rel="stylesheet" href="{{ static_url("CodeMirror/addon/merge/merge.css") }}">
-    <script src="{{ static_url("CodeMirror/addon/merge/merge.js") }}"></script>
+    <link rel="stylesheet" href="{{ static_url("node_modules/codemirror/addon/merge/merge.css") }}">
+    <script src="{{ static_url("node_modules/codemirror/addon/merge/merge.js") }}"></script>
 
     <link rel="stylesheet" href="{{ static_url("nbdime.css") }}">
     <script src="{{ static_url("nbdime.js") }}"></script>
