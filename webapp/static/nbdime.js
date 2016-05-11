@@ -17,6 +17,10 @@
     var SEQINSERT = "addrange";
     var SEQDELETE = "removerange";
 
+    var JSON_INDENT = "    ";
+
+    CodeMirror.defaults.autoRefresh = true;
+
 
     function convert_merge_data(data) {
         // FIXME: Convert data from server same as convert_diff_data
@@ -29,45 +33,51 @@
         return celldata;
     }
 
-    function convert_diff_data(data) {
+    function convert_diff_celldata(data) {
         var b = data.base;
-        var d = data.diff;
 
-        // This is a temporary data conversion from the nbdime diff format
-        // to the simplified format used while mocking up the web interface
+        // Splits diff into list of cells with cell-wise diffs
         var celldata = [];
 
         var bcells = b.cells;
-        var dcells = d.cells || [];
+        var dcells = [];
         var consumed = 0;
-        for (var i=0; i<dcells.length; ++i) {
-            var e = dcells[i];
+        // Find cells' diff entry
+        for (var i=0; i<data.diff.length; ++i) {
+            if (data.diff[i].key === "cells") {
+                console.assert(data.diff[i].op === "patch", "Non-patch diff-op on 'cells'.")
+                var d = data.diff[i].diff;
+            }
+        }
+        // Process cells
+        for (var i=0; i<d.length; ++i) {
+            var e = d[i];
             // nbdime diff format:
-            var action = e[0];
-            var index = e[1];
+            var action = e.op;
+            var index = e.key;
 
-            // Add cells not mentioned in diff
+            // Add cells not mentioned in diff (unchanged)
             for (var j=consumed; j<index; ++j) {
-                celldata.push([bcells[j], bcells[j]]);
+                celldata.push([bcells[j], undefined]);
             }
 
-            if (action == SEQINSERT) {
+            if (action === SEQINSERT) {
                 // Add inserted cells
-                var newcells = e[2];
+                var newcells = e.valuelist;
                 for (var j=0; j<newcells.length; ++j) {
                     celldata.push([null, newcells[j]]);
                 }
-            } else if (action == SEQDELETE) {
+            } else if (action === SEQDELETE) {
                 // Add deleted cells
-                var num_deleted = e[2];
+                var num_deleted = e.length;
                 for (var j=0; j<num_deleted; ++j) {
                     celldata.push([bcells[consumed+j], null]);
                 }
                 consumed += num_deleted;
-            } else if (action == PATCH) {
+            } else if (action === PATCH) {
                 // Add modified cell
-                var celldiff = e[2];
-                celldata.push([bcells[consumed], celldiff]); // FIXME: This is the diff, not the cell
+                var celldiff = e.diff;
+                celldata.push([bcells[consumed], e.diff]);
                 consumed++;
             } else {
                 throw "Invalid diff action.";
@@ -75,11 +85,12 @@
         }
         // Add cells at end not mentioned in diff
         for (var j=consumed; j<bcells.length; ++j) {
-            celldata.push([bcells[j], bcells[j]]);
+            celldata.push([bcells[j], undefined]);
         }
 
         return celldata;
     }
+
 
     /* Make a post request passing a json argument and receiving a json result. */
     function request_json(url, argument, callback, onError) {
@@ -161,15 +172,28 @@
 
 
     // TODO: Make this configurable
-    var mode = "text/python";
+    //var mode = "text/python";
 
 
     // Default arguments for codemirror instances
     function cm_args() {
         return {
             lineNumbers: true,
-            indentUnit: 4,
-            mode: mode
+            indentUnit: 4
+            //mode: mode
+        };
+    }
+
+    // Default arguments for codemirror diff viewers
+
+    function dv_args() {
+        return {
+            lineNumbers: true,
+            collapseIdentical: false,
+            showDifferences: true,
+            readOnly: true,
+            viewportMargin: Infinity
+            //mode: mode
         };
     }
 
@@ -180,14 +204,23 @@
             lineNumbers: true,
             collapseIdentical: false,
             showDifferences: true,
-            allowEditingOriginals: true,
-            mode: mode
+            allowEditingOriginals: true
+            //mode: mode
         };
     }
 
 
     function isString(s) {
         return typeof(s) === "string" || s instanceof String;
+    }
+
+
+    function get_line_ending_indices(str) {
+        var indices = [];
+        for(var i=0; i<str.length;i++) {
+            if (str[i] === "\n") indices.push(i);
+        }
+        return indices;
     }
 
 
@@ -231,18 +264,62 @@
     }
 
 
-    var model = {
-        root: { // div class nbdime-root
-            cells: { // ul class nbdime-cells
-                cellrow: [ // il containing ul with class nbdime-cellrow
-                    // cell with classes:
-                    // nbdime-cell
-                    // nbmerge-cell | nbdiff-cell
-                    // nbmerge-cell-* | nbdiff-cell-*
-                    ]
+    function remote_diff(base, diff) {
+        // The patched string to build and return:
+        var remote = "";
+        // The indices of insertions in the reference frame of the patched string (returned)
+        var insertion_indices = [];
+        // Index into obj, the next item to take unless diff says otherwise
+        var take = 0;
+        var skip = 0;
+        for (var i=0; i<diff.length; i++) {
+            var e = diff[i];
+            var op = e.op;
+            var index = e.key;
+            console.assert(typeof(index) == "number", "Diff index wrong type");
+
+            // Take values from obj not mentioned in diff, up to not including index
+            remote = remote.concat(base.slice(take, index));
+
+            if (op == SEQINSERT) {
+                // Extend with new values directly
+                insertion_indices.push(remote.length);
+                remote = remote.concat(e.valuelist);
+                skip = 0;
+            }
+            else if (op == SEQDELETE) {
+                // Delete a number of values by skipping
+                skip = e.length;
+            }
+            else if (op == PATCH) {
+                remote.push(patch(base[index], e.diff));
+                skip = 1;
+            }
+
+            // Skip the specified number of elements, but never decrement take.
+            // Note that take can pass index in diffs with repeated +/- on the
+            // same index, i.e. [op_remove(index), op_add(index, value)]
+            take = Math.max(take, index + skip);
+        }
+
+        // Take values at end not mentioned in diff
+        remote = remote.concat(base.slice(take, base.length));
+
+        return {remote: remote, insertion_indices: insertion_indices};
+    }
+
+
+    function index_to_cmpos(index, line_endings) {
+        if (index < line_endings[0]) {
+            return {line: 0, ch: index}
+        }
+        for (var i=1; i<line_endings.length; ++i) {
+            if (index<line_endings[i]) {
+                break;
             }
         }
-    };
+        return {line: i, ch: index - line_endings[i-1] - 1}
+    }
 
 
     // This is the list of all cells
@@ -274,7 +351,10 @@
 
     // This is used for any single cell of various classes
     function elt_cell(cls) {
-        return elt("span", [], "nbdime-cell " + cls);
+        var src = elt("div", [], "nbdime-source-cell " + cls);
+        var meta = elt("div", [], "nbdime-metadata-cell " + cls);
+        var outputs = elt("div", [], "nbdime-outputs-cell " + cls);
+        return elt("div", [src, meta, outputs], "nbdime-cell " + cls);
     }
 
 
@@ -283,48 +363,92 @@
             // Cell has been deleted or added, show on the left or right side
 
             // Create added cell with editor
-            var ca = elt_cell("nbdiff-cell-added");
-            var args = mv_args();
-            args.value = remote === null ? local: remote;
+            var aclass = "nbdiff-cell-added";
+            var dclass = "nbdiff-cell-deleted";
+            var args = dv_args();
+            if (remote === null) {
+                var cl = elt_cell(aclass);
+                var cr = elt_cell(dclass);
+                cr.appendChild(document.createTextNode("Cell deleted"));
+                var ca = cl;
+                args.value = local.source;
+            } else {
+                var cl = elt_cell(dclass);
+                var cr = elt_cell(aclass);
+                cl.appendChild(document.createTextNode("Cell added"));
+                var ca = cr;
+                args.value = remote.source;
+            }
             var editor = new CodeMirror(ca, args);
             add_editor(editor);
 
-            // Create deleted cell
-            var cd = elt_cell("nbdiff-cell-deleted");
-            cd.appendChild(document.createTextNode("DELETED"));
-
-            // Order cells depending on which side was deleted or added
-            return elt_cellrow(remote === null ? [ca, cd]: [cd, ca]);
-        } else if (local === remote) {
+            return elt_cellrow([cl, cr]);
+        } else if (remote === undefined) {
             // Cells are equal
 
             // Creating only one copy of the cell,
             //  but we can also add two equal cells with class nbdiff-cell-equal
             // if that's deemed more user friendly
             var c = elt_cell("nbdiff-cell-equal-content");
-            var args = cm_args();
-            args.value = local;
+            var args = dv_args();
+            args.value = local.source;
             var editor = new CodeMirror(c, args);
             add_editor(editor);
 
-            var cl = elt_cell("nbdiff-cell-equal-left");
-            var cr = elt_cell("nbdiff-cell-equal-right");
-            return elt_cellrow([cl, c, cr]);
+            return elt_cellrow([c]);
         } else {
             // Cells are different, show diff view
-            var c = elt_cell("nbdiff-cells-twoway");
+            var cl = elt_cell("nbdiff-cell-local");
+            var argsl = dv_args();
+            argsl.value = local.source;
+            //argsl.mode = "python";
+            var editorl = new CodeMirror(cl, argsl);
+            add_editor(editorl);
 
-            var args = mv_args();
-            args.value = local;
-            args.orig = remote;
-            var editor = new CodeMirror.MergeView(c, args);
-            //add_editor(editor);
+            var cr = elt_cell("nbdiff-cell-remote");
+            var argsr = dv_args();
+            for (var i=0; i<remote.length; i++) {
+                if (remote[i].key === "source") {
+                    var remote_source = remote[i].diff;
+                    break;
+                }
+            }
 
-            //var doc = editor.editor().getDoc();
-            //var lines = doc.getValue();
-            //editor.editor().on(...);
+            var rdiff = remote_diff(local.source, remote_source);
+            argsr.value = rdiff.remote;
+            var editorr = new CodeMirror(cr, argsr);
+            add_editor(editorr);
 
-            return elt_cellrow([c]);
+            // Index into obj, the next item to take unless diff says otherwise
+            var i_insert = 0;
+            var newline_indicesl = get_line_ending_indices(local.source);
+            var newline_indicesr = get_line_ending_indices(rdiff.remote);
+            for (var i=0; i<remote_source.length; i++) {
+                var e = remote_source[i];
+                var op = e.op;
+                var index = e.key;
+
+                if (op == SEQINSERT) {
+                    var from = index_to_cmpos(rdiff.insertion_indices[i_insert], newline_indicesr);
+                    var to = index_to_cmpos(rdiff.insertion_indices[i_insert] + e.valuelist.length, newline_indicesr);
+                    editorr.doc.markText(from, to, {className: "nbdime-source-added"})
+                    for (var j=from.line; j<=to.line; ++j) {
+                        editorr.doc.addLineClass(j, "wrap", "nbdime-source-line-addition")
+                    }
+                    ++i_insert;
+                }
+                else if (op == SEQDELETE) {
+                    // Highlight deletion in local
+                    var from = index_to_cmpos(index, newline_indicesl)
+                    var to = index_to_cmpos(index + e.length, newline_indicesl)
+                    editorl.doc.markText(from, to, {className: "nbdime-source-removed"})
+                    for (var j=from.line; j<=to.line; ++j) {
+                        editorl.doc.addLineClass(j, "wrap", "nbdime-source-line-deletion")
+                    }
+                }
+            }
+
+            return elt_cellrow([cl, cr]);
         }
     }
 
@@ -411,14 +535,16 @@
 
 
     // The main page generation script for nbdiff
-    function elt_nbdiff_view(celldata) {
+    function elt_nbdiff_view(data) {
         // For each cell, generate an aligned row depending on conflict status:
         var rows = [elt_cell_headers(["Base", "Remote"], "nbdiff-cell-header")];
+        // TODO: Handle document metadata changes, if any
+        var celldata = convert_diff_celldata(data);
         for (var i=0; i<celldata.length; ++i) {
             // FIXME: Render cells properly, this just dumps cell json in editor
             var data = celldata[i];
-            var base = data[0] == null ? null: JSON.stringify(data[0]);
-            var remote = data[1] == null ? null: JSON.stringify(data[1]);
+            var base = data[0];
+            var remote = data[1];
             rows.push(elt_diff_row(base, remote));
         }
         rows.push(elt_diff_buttons());  // This is nothing interesting yet
@@ -469,8 +595,7 @@
 
     // Initialization. Intended usage is to set body.onload=nbdime.init_diff() in parent document.
     nbdime.init_diff = function(data) {
-        var celldata = convert_diff_data(data);
-        var view = elt_nbdiff_view(celldata);
+        var view = elt_nbdiff_view(data);
         var root = get_cleared_root();
         root.appendChild(view);
         refresh_editors();
@@ -479,8 +604,7 @@
 
     // Initialization. Intended usage is to set body.onload=nbdime.init_merge() in parent document.
     nbdime.init_merge = function(data) {
-        var celldata = convert_merge_data(data);
-        var view = elt_nbmerge_view(celldata);
+        var view = elt_nbmerge_view(data);
         var root = get_cleared_root();
         root.appendChild(view);
         refresh_editors();

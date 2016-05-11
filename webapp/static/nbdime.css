@@ -51,16 +51,9 @@ ul.nbdime-cells > li {
 /* Alternative for showing single cell when cells are equal */
 .nbdiff-cell-equal-content {
     width: 50%;
-    margin: 0;
+    margin-left: 25%;
 }
-.nbdiff-cell-equal-left {
-    width: 25%;
-    margin: 0;
-}
-.nbdiff-cell-equal-right {
-    width: 25%;
-    margin: 0;
-}
+
 /* Alternative for showing duplicated cell when cells are equal */
 .nbdiff-cell-equal {
     width: 50%;
@@ -69,6 +62,16 @@ ul.nbdime-cells > li {
 
 .nbdiff-cell-twoway {
     width: 100%;
+    margin: 0;
+}
+
+.nbdiff-cell-local {
+    width: 50%;
+    margin: 0;
+}
+
+.nbdiff-cell-remote {
+    width: 50%;
     margin: 0;
 }
 
@@ -120,11 +123,27 @@ ul.nbdime-cells > li {
     margin: 0;
 }
 
+.nbdime-source-added {
+    background-color: #a6f3a6;
+}
+.nbdime-source-removed {
+    background-color: #f8cbcb;
+}
+
+.nbdime-source-line-addition {
+    background-color: #dbffdb;
+}
+.nbdime-source-line-deletion {
+    background-color: #ffecec;
+}
+
+
 
 /* CodeMirror customization: TODO: Use css from Jupyter Notebook. */
 
 .CodeMirror {
     line-height: 1.2;
+    height: auto;
 }
 
 .CodeMirror-merge-2pane {
