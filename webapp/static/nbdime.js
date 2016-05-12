@@ -57,8 +57,9 @@
             var index = e.key;
 
             // Add cells not mentioned in diff (unchanged)
-            for (var j=consumed; j<index; ++j) {
-                celldata.push([bcells[j], undefined]);
+            while (consumed<index) {
+                celldata.push([bcells[consumed], undefined]);
+                consumed++;
             }
 
             if (action === SEQINSERT) {
@@ -84,8 +85,9 @@
             }
         }
         // Add cells at end not mentioned in diff
-        for (var j=consumed; j<bcells.length; ++j) {
-            celldata.push([bcells[j], undefined]);
+        while (consumed < bcells.length) {
+            celldata.push([bcells[consumed], undefined]);
+            consumed++;
         }
 
         return celldata;
