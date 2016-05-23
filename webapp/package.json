@@ -1,0 +1,27 @@
+{
+  "name": "jupyter-nbdime",
+  "scripts": {
+    "build": "tsc --project src && webpack --config webpack.conf.js",
+    "clean": "rimraf build && rimraf node_modules",
+    "postinstall": "npm dedupe",
+    "update": "rimraf node_modules/jupyter-nbdime && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^2.0.0",
+    "css-loader": "^0.23.1",
+    "rimraf": "^2.5.2",
+    "style-loader": "^0.13.1",
+    "typescript": "^1.8.10"
+  },
+  "dependencies": {
+    "jupyter-js-notebook": "^0.19.1",
+    "jupyter-js-services": "^0.10.1",
+    "jupyter-js-ui": "^0.11.2",
+    "phosphor-commandpalette": "^0.2.0",
+    "phosphor-keymap": "^0.8.0",
+    "phosphor-splitpanel": "^1.0.0-rc.1",
+    "phosphor-widget": "^1.0.0-rc.1",
+    "codemirror": "^5.11.0",
+    "json-stable-stringify": "^1.0.1"
+  }
+}

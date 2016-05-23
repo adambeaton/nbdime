@@ -9,4 +9,13 @@ htmlcov
 .cache
 
 .spyderproject
-webapp/static/node_modules/
+webapp/node_modules/
+webapp/build/
+
+webapp/static/bundle.js
+
+webapp/static/bundle.js.map
+
+webapp/static/1.bundle.js.map
+
+webapp/static/1.bundle.js

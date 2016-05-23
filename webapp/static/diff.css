@@ -1,0 +1,93 @@
+
+
+.jp-Notebook-diff {
+    width: 90%;
+    margin: auto;
+}
+
+
+/* Alternative for showing single cell when cells are equal */
+.jp-Cell-unchanged {
+    margin-left: 25%;
+    width: 50%;
+}
+
+.jp-Cell-diff {
+    margin-bottom: 20px;
+    border: solid black thin;
+}
+
+.jp-Cell-twoway .jp-Cell-base {
+    float: left;
+    width: 50%;
+}
+
+.jp-Cell-twoway .jp-Cell-remote {
+    float: right;
+    width: 50%;
+}
+
+.jp-Cell-added > div:first-child {
+    float: left;
+    width: 50%;
+}
+
+.jp-Cell-added > .jp-Cell-base {
+    width: 100%;
+    float: right;
+}
+
+.jp-Cell-added .jp-Cellrow-metadata {
+    display: none;
+}
+
+.jp-Cell-added .jp-Cellrow-outputs {
+    display: none;
+}
+
+.jp-Cell-deleted > div:first-child {
+    float: right;
+    width: 50%;
+}
+
+.jp-Cell-deleted > .jp-Cell-base {
+    width: 100%;
+    float: left;
+}
+
+.jp-Cell-deleted .jp-Cellrow-metadata {
+    display: none;
+}
+
+.jp-Cell-deleted .jp-Cellrow-outputs {
+    display: none;
+}
+
+.jp-InputArea-prompt {
+    display: none;
+}
+
+
+
+
+.jp-Cell-deleted .jp-CodeMirror > .CodeMirror {
+    background-color: #ffecec;
+}
+
+.jp-Cell-added .jp-CodeMirror > .CodeMirror {
+    background-color: #dbffdb;
+}
+
+.nbdime-source-added {
+    background-color: #a6f3a6;
+}
+.nbdime-source-removed {
+    background-color: #f8cbcb;
+}
+
+.nbdime-source-line-addition {
+    background-color: #dbffdb;
+}
+.nbdime-source-line-deletion {
+    background-color: #ffecec;
+}

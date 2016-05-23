@@ -69,7 +69,7 @@ class MainHandler(NbdimeApiHandler):
 class MainDiffHandler(NbdimeApiHandler):
     def get(self):
         # Currently just using the same file for both diff and merge
-        self.render("index.html")
+        self.render("diff.html")
 
 class MainMergeHandler(NbdimeApiHandler):
     def get(self):
