@@ -53,7 +53,7 @@ function init_diff(data: {base: INotebookContent, diff: IDiffEntry[]}) {
         new ConsoleTextRenderer(),
         new TextRenderer()
     ];
-    
+
     let rendermime = new RenderMime<Widget>();
     for (let t of transformers) {
         for (let m of t.mimetypes) {
@@ -64,7 +64,7 @@ function init_diff(data: {base: INotebookContent, diff: IDiffEntry[]}) {
 
     let nbdModel = new NotebookDiffModel(data.base, data.diff);
     let nbdWidget = new NotebookDiffWidget(nbdModel, rendermime);
-    
+
     let root = document.getElementById('nbdime-root');
     root.innerHTML = "";
     let panel = new Panel();
@@ -72,13 +72,23 @@ function init_diff(data: {base: INotebookContent, diff: IDiffEntry[]}) {
     panel.attach(root);
     panel.addChild(nbdWidget);
     window.onresize = () => { panel.update(); };
-  }
+}
 
-function on_diff() {
-      var b = (document.getElementById("diff-base") as HTMLInputElement).value;
-      var r = (document.getElementById("diff-remote") as HTMLInputElement).value;
-      request_diff(b, r);
+function on_diff(e: Event) {
+    e.preventDefault();
+    var b = (document.getElementById("diff-base") as HTMLInputElement).value;
+    var r = (document.getElementById("diff-remote") as HTMLInputElement).value;
+    request_diff(b, r);
+    let uri = "/diff?base=" + encodeURIComponent(b) + "&remote=" + encodeURIComponent(r);
+    history.pushState({base: b, remote: r}, "Diff: \"" + b + "\" vs \"" + r + "\"", uri);
+    return false;
 };
+
+function on_pop_state(e: PopStateEvent) {
+    if (e.state) {
+        request_diff(e.state.base, e.state.remote);
+    }
+}
 
     /* Make a post request passing a json argument and receiving a json result. */
 function request_json(url: string, argument: any, callback: any, onError: any) {
@@ -114,8 +124,9 @@ function on_diff_request_failed() {
 }
 
 function attachToForm() {
-    var btn = document.getElementById('nbdime-run-diff') as HTMLButtonElement;
-    btn.onclick = on_diff;
+    var btn = document.getElementById('nbdime-diff-form') as HTMLFormElement;
+    btn.onsubmit = on_diff;
+    window.onpopstate = on_pop_state;
 }
 
 window.onload = attachToForm;

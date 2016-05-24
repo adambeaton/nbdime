@@ -17,16 +17,16 @@
       <h3>Notebook Diff</h3>
       Enter notebook filenames in one of the forms below to get started.
 
-      <div class="nbdime-forms">
+      <form id="nbdime-diff-form" class="nbdime-forms">
         <fieldset>
           <legend>Please input filenames of notebooks to diff:</legend>
           Base:
           <input id="diff-base" type="text" name="base" value="testnotebooks/base.ipynb">
           Remote:
           <input id="diff-remote" type="text" name="remote" value="testnotebooks/remote.ipynb">
-          <button id="nbdime-run-diff" type="button" name="diff" value="Diff files">Diff files</button>
+          <input id="nbdime-run-diff" type="submit" name="diff" value="Diff files">Diff files</button>
         </fieldset>
-      </div> <!-- nbdime-forms -->
+      </form> <!-- nbdime-forms -->
     </div> <!-- ndime-header -->
 
     <div id="nbdime-root">

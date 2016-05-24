@@ -164,7 +164,7 @@ class CodeMirrorWidget extends Widget {
         let doc = this.editor.getDoc();
         doc.setValue(model.text);
         this._needsUpdate = true;
-        this.editor.setOption('readOnly', true);
+        this.editor.setOption('readOnly', 'nocursor');
     }
     
     public highlight(ranges: DiffRange[], clsCh: string, clsLine: string) {
