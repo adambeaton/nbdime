@@ -123,10 +123,79 @@ function on_diff_request_failed() {
     console.log("Diff request failed.");
 }
 
-function attachToForm() {
-    var btn = document.getElementById('nbdime-diff-form') as HTMLFormElement;
-    btn.onsubmit = on_diff;
-    window.onpopstate = on_pop_state;
+/**
+ * Global config data for the Nbdime application.
+ */
+var configData: any = null;
+
+/**
+ *  Make an object fully immutable by freezing each object in it.
+ */
+function deepFreeze(obj: any): any {
+
+  // Freeze properties before freezing self
+  Object.getOwnPropertyNames(obj).forEach(function(name) {
+    var prop = obj[name];
+
+    // Freeze prop if it is an object
+    if (typeof prop == 'object' && prop !== null && !Object.isFrozen(prop))
+      deepFreeze(prop);
+  });
+
+  // Freeze self
+  return Object.freeze(obj);
 }
 
-window.onload = attachToForm;
+export
+function getConfigOption(name: string): string;
+
+export
+function getConfigOption(name: string): any {
+  if (configData) {
+    return configData[name];
+  }
+  if (typeof document !== 'undefined') {
+    let el = document.getElementById('nbdime-config-data');
+    if (el) {
+      configData = JSON.parse(el.textContent);
+    } else {
+      configData = {};
+    }
+  }
+  configData = deepFreeze(configData);
+  return configData[name];
+}
+
+function closeTool() {
+    var xhttp = new XMLHttpRequest();
+    var url = "/api/closetool";
+    xhttp.open("POST", url, false);
+    xhttp.send();
+    window.close();
+}
+
+function attachToForm() {
+    var frm = document.getElementById('nbdime-diff-form') as HTMLFormElement;
+    if (frm) {
+        frm.onsubmit = on_diff;
+        window.onpopstate = on_pop_state;
+    }
+}
+
+
+function initialize() {
+    attachToForm();
+    // If arguments supplied, run diff
+    let base = getConfigOption("base");
+    let remote = getConfigOption("remote");
+    if (base && remote) {
+        request_diff(base, remote);
+    }
+    let close_btn = document.getElementById('nbdime-close') as HTMLButtonElement;
+    if (close_btn) {
+        close_btn.onclick = closeTool;
+    }
+    window.onbeforeunload = closeTool;
+}
+
+window.onload = initialize;

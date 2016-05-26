@@ -48,6 +48,7 @@ import {
     ICellDiffModel, INotebookDiffModel, NotebookDiffModel, IDiffModel
 } from './model';
 
+
 const NBDIFF_CLASS = 'jp-Notebook-diff';
 
 const CELLDIFF_CLASS = 'jp-Cell-diff';
@@ -131,6 +132,45 @@ class NotebookDiffWidget extends Widget {
 
 
 
+/**
+ * NbdimeMergeView
+ */
+class NbdimeMergeView extends Widget {
+    constructor(models: IEditorModel[]) {
+        super();
+        let opts: CodeMirror.MergeView.MergeViewEditorConfiguration = {orig: null};
+        opts.allowEditingOriginals = false;
+        opts.readOnly = 'nocursor';
+        opts.collapseIdentical = true;
+        if (models.length === 1) {
+            opts.value = models[0].text;
+        } else if (models.length === 2) {
+            opts.origLeft = models[0].text;
+            opts.value = models[1].text;
+        } else if (models.length === 3) {
+            opts.origLeft = models[0].text;
+            opts.value = models[1].text;
+            opts.origRight = models[2].text;
+        }
+        this._mergeview = CodeMirror.MergeView(this.node, opts);
+        this._editors = [];
+        if (this._mergeview.left) {
+            this._editors.push(this._mergeview.left);
+        }
+        if (this._mergeview.right) {
+            this._editors.push(this._mergeview.right);
+        }
+        for (var edt of this._editors) {
+            edt.getDiff = function(): CodeMirror.GDiff {
+                return [[0, "TEEEEEST"]]
+            }
+        }
+    }
+    
+    protected _models: IEditorModel[];
+    protected _mergeview: CodeMirror.MergeView.MergeViewEditor;
+    protected _editors: CodeMirror.MergeView.DiffView[];
+}
 
 
 /**
@@ -141,12 +181,12 @@ class CellDiffRowWidget extends Widget {
         super();
         this.layout = new PanelLayout();
     }
-    
+
     addWidget(widget: Widget) {
         (this.layout as PanelLayout).addChild(widget);
         this.widgets.push(widget);
     }
-    
+
     widgets: Widget[] = [];
 }
 
@@ -166,7 +206,7 @@ class CodeMirrorWidget extends Widget {
         this._needsUpdate = true;
         this.editor.setOption('readOnly', 'nocursor');
     }
-    
+
     public highlight(ranges: DiffRange[], clsCh: string, clsLine: string) {
         let doc = this.editor.getDoc();
         for (var r of ranges) {
@@ -178,7 +218,7 @@ class CodeMirrorWidget extends Widget {
             }
         }
     }
-    
+
     /**
      * Handle afterAttach messages.
      */
@@ -194,7 +234,7 @@ class CodeMirrorWidget extends Widget {
         if (this._needsUpdate) this.update();
         this.editor.refresh();
     }
-    
+
     /**
      * Handle resize messages.
      */
@@ -205,7 +245,7 @@ class CodeMirrorWidget extends Widget {
         this.editor.setSize(msg.width, msg.height);
         }
     }
-    
+
     protected editor: CodeMirror.Editor;
     protected _needsUpdate = false;
 }
@@ -222,7 +262,7 @@ class CellDiffWidget extends Panel {
     static createEditor(model: IEditorModel): CodeMirrorWidget {
         return new CodeMirrorWidget(model);
     }
-    
+
     constructor(model: ICellDiffModel, rendermime: RenderMime<Widget>) {
         super();
         this.addClass(CELLDIFF_CLASS);
@@ -232,17 +272,20 @@ class CellDiffWidget extends Panel {
         
         // Add "cell added/deleted" notifiers, as appropriate
         var io_col = 0;
+        var CURR_DIFF_CLASSES = DIFF_CLASSES.slice();  // copy
         if (model.added) {
             let widget = new Widget();
             widget.node.textContent = "Cell added";
             this.addWidget(widget, 0, 0, Infinity);
             io_col = 1;
             this.addClass(CELLADDED_CLASS);
+            CURR_DIFF_CLASSES = DIFF_CLASSES.slice(0, 1);
         } else if (model.deleted) {
             let widget = new Widget();
             widget.node.textContent = "Cell deleted";
             this.addWidget(widget, 0, 1, Infinity);
             this.addClass(CELLDELETED_CLASS);
+            CURR_DIFF_CLASSES = DIFF_CLASSES.slice(1, 2);
         } else if (model.unchanged) {
             this.addClass(CELLUNCHANGED_CLASS);
         } else {
@@ -250,7 +293,10 @@ class CellDiffWidget extends Panel {
         }
         
         // Add inputs and outputs, on a row-by-row basis
-        let sourceRowWidget = new CellDiffRowWidget();
+        let sourceView = new NbdimeMergeView(model.source_editors);
+        let metadataView = new NbdimeMergeView(model.metadata_editors);
+        let outputsView = new NbdimeMergeView(model.outputs_editors);
+        /* let sourceRowWidget = new CellDiffRowWidget();
         let metadataRowWidget = new CellDiffRowWidget();
         let outputsRowWidget = new CellDiffRowWidget();
         
@@ -258,11 +304,21 @@ class CellDiffWidget extends Panel {
         metadataRowWidget.addClass(METADATA_ROW_CLASS);
         outputsRowWidget.addClass(OUTPUTS_ROW_CLASS);
         
+        if (model.source_editors.length == 1) {
+            var w = model.source_editors[0];
+            let inp = constructor.createEditor(w);
+            sourceRowWidget.addWidget(inp);
+            inp.addClass(CURR_DIFF_CLASSES[0]);
+            this._widget_lookup["source0"] = inp;
+        } else {
+            // Diff
+        }
+        
         for (var i = 0; i < model.source_editors.length; i++) {
             var w = model.source_editors[i];
             let inp = constructor.createEditor(w);
             sourceRowWidget.addWidget(inp);
-            inp.addClass(DIFF_CLASSES[i]);
+            inp.addClass(CURR_DIFF_CLASSES[i]);
             this._widget_lookup["source" + i] = inp;
         }
         this.addWidget(sourceRowWidget, 0, io_col);
@@ -272,7 +328,7 @@ class CellDiffWidget extends Panel {
                 var w = model.metadata_editors[i];
                 let inp = constructor.createEditor(w);
                 metadataRowWidget.addWidget(inp);
-                inp.addClass(DIFF_CLASSES[i]);
+                inp.addClass(CURR_DIFF_CLASSES[i]);
             this._widget_lookup["metadata" + i] = inp;
             }
             this.addWidget(metadataRowWidget, 1, io_col);
@@ -283,11 +339,11 @@ class CellDiffWidget extends Panel {
                 var w = model.outputs_editors[i];
                 let inp = constructor.createEditor(w);
                 outputsRowWidget.addWidget(inp);
-                inp.addClass(DIFF_CLASSES[i]);
+                inp.addClass(CURR_DIFF_CLASSES[i]);
             this._widget_lookup["outputs" + i] = inp;
             }
             this.addWidget(outputsRowWidget, 2, io_col);
-        }
+        } */
         
         if (!model.added && !model.deleted && !model.unchanged) {
             this.highlight();

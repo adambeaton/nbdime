@@ -1,36 +1,17 @@
 // Type definitions for CodeMirror
 // Project: https://github.com/marijnh/CodeMirror
 // Definitions by: mihailik <https://github.com/mihailik>
-// Definitions: https://github.com/borisyankov/DefinitelyTyped
+// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
 declare function CodeMirror(host: HTMLElement, options?: CodeMirror.EditorConfiguration): CodeMirror.Editor;
 declare function CodeMirror(callback: (host: HTMLElement) => void , options?: CodeMirror.EditorConfiguration): CodeMirror.Editor;
 
-declare module CodeMirror {
+declare namespace CodeMirror {
     export var Doc : CodeMirror.DocConstructor;
     export var Pos: CodeMirror.PositionConstructor;
     export var Pass: any;
 
     function fromTextArea(host: HTMLTextAreaElement, options?: EditorConfiguration): CodeMirror.EditorFromTextArea;
-
-
-    // findMode* functions are from loading the codemirror/mode/meta module
-    interface modespec {
-      name: string;
-      mode: string;
-      mime: string;
-    }
-    function findModeByName(name: string): modespec;
-    function findModeByFileName(name: string): modespec;
-    function findModeByMIME(mime: string): modespec;
-
-    var modes: {
-      [key: string]: any;
-    };
-
-    var mimeModes: {
-        [key: string]: any;
-    }
 
     var version: string;
 
@@ -51,6 +32,11 @@ declare module CodeMirror {
     whenever a new CodeMirror instance is initialized. */
     function defineInitHook(func: Function): void;
 
+    /** Registers a helper value with the given name in the given namespace (type). This is used to define functionality
+    that may be looked up by mode. Will create (if it doesn't already exist) a property on the CodeMirror object for
+    the given type, pointing to an object that maps names to values. I.e. after doing
+    CodeMirror.registerHelper("hint", "foo", myFoo), the value CodeMirror.hint.foo will point to myFoo. */
+    function registerHelper(namespace: string, name: string, helper: any): void;
 
 
     function on(element: any, eventName: string, handler: Function): void;
@@ -164,7 +150,11 @@ declare module CodeMirror {
         /** Attach a new document to the editor. Returns the old document, which is now no longer associated with an editor. */
         swapDoc(doc: CodeMirror.Doc): CodeMirror.Doc;
 
+        /** Get the content of the current editor document. You can pass it an optional argument to specify the string to be used to separate lines (defaults to "\n"). */
+        getValue(seperator?: string): string;
 
+        /** Set the content of the current editor document. */
+        setValue(content: string): void;
 
         /** Sets the gutter marker for the given gutter (identified by its CSS class, see the gutters option) to the given value.
         Value can be either null, to clear the marker, or a DOM element, to set it. The DOM element will be shown in the specified gutter next to the specified line. */
@@ -351,15 +341,15 @@ declare module CodeMirror {
         off(eventName: string, handler: (instance: CodeMirror.Editor) => void ): void;
 
         /** Fires every time the content of the editor is changed. */
-        on(eventName: 'change', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChange) => void ): void;
-        off(eventName: 'change', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChange) => void ): void;
+        on(eventName: 'change', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChangeLinkedList) => void ): void;
+        off(eventName: 'change', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChangeLinkedList) => void ): void;
 
         /** Like the "change" event, but batched per operation, passing an
          * array containing all the changes that happened in the operation.
          * This event is fired after the operation finished, and display
          * changes it makes will trigger a new operation. */
-        on(eventName: 'changes', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChange[]) => void ): void;
-        off(eventName: 'changes', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChange[]) => void ): void;
+        on(eventName: 'changes', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChangeLinkedList[]) => void ): void;
+        off(eventName: 'changes', handler: (instance: CodeMirror.Editor, change: CodeMirror.EditorChangeLinkedList[]) => void ): void;
 
         /** This event is fired before a change is applied, and its handler may choose to modify or cancel the change.
         The changeObj never has a next property, since this is fired for each individual change, and not batched per operation.
@@ -409,6 +399,9 @@ declare module CodeMirror {
         The handler may mess with the style of the resulting element, or add event handlers, but should not try to change the state of the editor. */
         on(eventName: 'renderLine', handler: (instance: CodeMirror.Editor, line: number, element: HTMLElement) => void ): void;
         off(eventName: 'renderLine', handler: (instance: CodeMirror.Editor, line: number, element: HTMLElement) => void ): void;
+
+        /** Expose the state object, so that the Editor.state.completionActive property is reachable*/
+        state: any;
     }
 
     interface EditorFromTextArea extends Editor {
@@ -608,6 +601,8 @@ declare module CodeMirror {
         /** The reverse of posFromIndex. */
         indexFromPos(object: CodeMirror.Position): number;
 
+        /** Expose the state object, so that the Doc.state.completionActive property is reachable*/
+        state: any;
     }
 
     interface LineHandle {
@@ -620,7 +615,7 @@ declare module CodeMirror {
 
         /** Returns a {from, to} object (both holding document positions), indicating the current position of the marked range,
         or undefined if the marker is no longer in the document. */
-        find(): CodeMirror.Position;
+        find(): CodeMirror.Range;
 
         /**  Returns an object representing the options for the marker. If copyWidget is given true, it will clone the value of the replacedWith option, if any. */
         getOptions(copyWidget: boolean): CodeMirror.TextMarkerOptions;
@@ -648,6 +643,11 @@ declare module CodeMirror {
         origin: string;
     }
 
+    interface EditorChangeLinkedList extends CodeMirror.EditorChange {
+        /** Points to another change object (which may point to another, etc). */
+        next?: CodeMirror.EditorChangeLinkedList;
+    }
+
     interface EditorChangeCancellable extends CodeMirror.EditorChange {
         /** may be used to modify the change. All three arguments to update are optional, and can be left off to leave the existing value for that field intact. */
         update(from?: CodeMirror.Position, to?: CodeMirror.Position, text?: string): void;
@@ -656,8 +656,13 @@ declare module CodeMirror {
     }
 
     interface PositionConstructor {
-        new (line: number, ch: number): Position;
-        (line: number, ch: number): Position;
+        new (line: number, ch?: number): Position;
+        (line: number, ch?: number): Position;
+    }
+
+    interface Range{
+        from: CodeMirror.Position;
+        to: CodeMirror.Position;
     }
 
     interface Position {
@@ -811,8 +816,8 @@ declare module CodeMirror {
         /** Optional lint configuration to be used in conjunction with CodeMirror's linter addon. */
         lint?: boolean | LintOptions;
 
-    /** Optional value to be used in conduction with CodeMirror’s placeholder add-on. */
-    placeholder?: string;
+        /** Optional value to be used in conjunction with CodeMirror’s placeholder add-on. */
+        placeholder?: string;
     }
 
     interface TextMarkerOptions {
@@ -1057,17 +1062,12 @@ declare module CodeMirror {
      * (modes should not leak anything into the global scope!), i.e. write your whole mode inside this function.
      */
     function defineMode(id: string, modefactory: ModeFactory<any>): void;
-    function defineMode(id: string, modefactory: ModeFactory<any>, base: any): void;
 
     /**
-     * Define a mimetype.
+     * id will be the id for the defined mode. Typically, you should use this second argument to defineMode as your module scope function
+     * (modes should not leak anything into the global scope!), i.e. write your whole mode inside this function.
      */
-    function defineMIME(mimetype: string, mode: any): void;
-
-    /**
-     * A mode that encompasses many mode types.
-     */
-    function multiplexingMode<T>(...modes: any[]): Mode<T>;
+    function defineMode<T>(id: string, modefactory: ModeFactory<T>): void;
 
     /**
      * The first argument is a configuration object as passed to the mode constructor function, and the second argument
@@ -1124,6 +1124,115 @@ declare module CodeMirror {
         message?: string;
         severity?: string;
         to?: Position;
+    }
+
+    /**
+     * A function that calculates either a two-way or three-way merge between different sets of content.
+     */
+    function MergeView(element: HTMLElement, options?: MergeView.MergeViewEditorConfiguration): MergeView.MergeViewEditor;
+
+    namespace MergeView {
+      /**
+       * Options available to MergeView.
+       */
+      interface MergeViewEditorConfiguration extends EditorConfiguration {
+          /**
+           * Determines whether the original editor allows editing. Defaults to false.
+           */
+          allowEditingOriginals?: boolean;
+
+          /**
+           * When true stretches of unchanged text will be collapsed. When a number is given, this indicates the amount
+           * of lines to leave visible around such stretches (which defaults to 2). Defaults to false.
+           */
+          collapseIdentical?: boolean | number;
+
+          /**
+           * Sets the style used to connect changed chunks of code. By default, connectors are drawn. When this is set to "align",
+           * the smaller chunk is padded to align with the bigger chunk instead.
+           */
+          connect?: string;
+
+          /**
+           * Callback for when stretches of unchanged text are collapsed.
+           */
+          onCollapse?(mergeView: MergeViewEditor, line: number, size: number, mark: TextMarker): void;
+
+          /**
+           * Provides original version of the document to be shown on the right of the editor.
+           */
+          orig: any;
+
+          /**
+           * Provides original version of the document to be shown on the left of the editor.
+           * To create a 2-way (as opposed to 3-way) merge view, provide only one of origLeft and origRight.
+           */
+          origLeft?: any;
+
+          /**
+           * Provides original version of document to be shown on the right of the editor.
+           * To create a 2-way (as opposed to 3-way) merge view, provide only one of origLeft and origRight.
+           */
+          origRight?: any;
+
+          /**
+           * Determines whether buttons that allow the user to revert changes are shown. Defaults to true.
+           */
+          revertButtons?: boolean;
+
+          /**
+           * When true, changed pieces of text are highlighted. Defaults to true.
+           */
+          showDifferences?: boolean;
+      }
+
+      interface MergeViewEditor extends Editor {
+          /**
+           * Returns the editor instance.
+           */
+          editor(): Editor;
+
+          /**
+           * Left side of the merge view.
+           */
+          left: DiffView;
+          leftChunks(): MergeViewDiffChunk;
+          leftOriginal(): Editor;
+
+          /**
+           * Right side of the merge view.
+           */
+          right: DiffView;
+          rightChunks(): MergeViewDiffChunk;
+          rightOriginal(): Editor;
+
+          /**
+           * Sets whether or not the merge view should show the differences between the editor views.
+           */
+          setShowDifferences(showDifferences: boolean): void;
+      }
+
+      /**
+       * Tracks changes in chunks from oroginal to new.
+       */
+      interface MergeViewDiffChunk {
+          editFrom: number;
+          editTo: number;
+          origFrom: number;
+          origTo: number;
+      }
+
+      interface DiffView {
+          /**
+           * Forces the view to reload.
+           */
+          forceUpdate(): (mode: string) => void;
+
+          /**
+           * Sets whether or not the merge view should show the differences between the editor views.
+           */
+          setShowDifferences(showDifferences: boolean): void;
+      }
     }
 }
 

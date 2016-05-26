@@ -21,9 +21,9 @@
         <fieldset>
           <legend>Please input filenames of notebooks to diff:</legend>
           Base:
-          <input id="diff-base" type="text" name="base" value="testnotebooks/base.ipynb">
+          <input id="diff-base" type="text" name="base" value="{{ base }}">
           Remote:
-          <input id="diff-remote" type="text" name="remote" value="testnotebooks/remote.ipynb">
+          <input id="diff-remote" type="text" name="remote" value="{{ remote }}">
           <input id="nbdime-run-diff" type="submit" name="diff" value="Diff files">Diff files</button>
         </fieldset>
       </form> <!-- nbdime-forms -->
@@ -32,6 +32,8 @@
     <div id="nbdime-root">
     </div>
     <script id='jupyter-config-data' type="application/json">{ "baseUrl": "{{ static_url }}" }</script>
+    <script id='nbdime-config-data' type="application/json">{ "base": "{{ base }}", "remote": "{{remote}}"}</script>
     <script src="{{ static_url('bundle.js') }}"></script>
+    <noscript>Nbdime relies on javascript for diff/merge views!</noscript>
   </body>
 </html>
