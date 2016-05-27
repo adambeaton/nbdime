@@ -12,6 +12,8 @@ declare namespace CodeMirror {
     export var Pass: any;
 
     function fromTextArea(host: HTMLTextAreaElement, options?: EditorConfiguration): CodeMirror.EditorFromTextArea;
+    
+    var commands: any;
 
     var version: string;
 
@@ -200,13 +202,15 @@ declare namespace CodeMirror {
         Note that the widget node will become a descendant of nodes with CodeMirror-specific CSS classes, and those classes might in some cases affect it. */
         addLineWidget(line: any, node: HTMLElement, options?: {
             /** Whether the widget should cover the gutter. */
-            coverGutter: boolean;
+            coverGutter?: boolean;
             /** Whether the widget should stay fixed in the face of horizontal scrolling. */
-            noHScroll: boolean;
+            noHScroll?: boolean;
             /** Causes the widget to be placed above instead of below the text of the line. */
-            above: boolean;
+            above?: boolean;
             /** When true, will cause the widget to be rendered even if the line it is associated with is hidden. */
-            showIfHidden: boolean;
+            showIfHidden?: boolean;
+            /** The height of the line widget */
+            height?: number;
         }): CodeMirror.LineWidget;
 
 
@@ -265,7 +269,14 @@ declare namespace CodeMirror {
         /** Given an { left , top } object , returns the { line , ch } position that corresponds to it.
         The optional mode parameter determines relative to what the coordinates are interpreted. It may be "window" , "page"(the default) , or "local". */
         coordsChar(object: { left: number; top: number; }, mode?: string): CodeMirror.Position;
-
+        
+        /** Computes the line at the given pixel height. mode can be one of the same strings that coordsChar accepts. */
+        lineAtHeight(height: number, mode?: string): number
+    
+        /** Computes the height of the top of a line, in the coordinate system specified by mode (see coordsChar), which defaults to "page".
+         When a line below the bottom of the document is specified, the returned value is the bottom of the last line in the document. */
+        heightAtLine(line: number | LineHandle, mode?: string): number
+    
         /** Returns the line height of the default font for the editor. */
         defaultTextHeight(): number;
 
@@ -402,6 +413,24 @@ declare namespace CodeMirror {
 
         /** Expose the state object, so that the Editor.state.completionActive property is reachable*/
         state: any;
+        
+        curOp: {
+            cm: CodeMirror.Editor,
+            viewChanged: boolean,      // Flag that indicates that lines might need to be redrawn
+            startHeight: number,        // Used to detect need to update scrollbar
+            forceUpdate: boolean,      // Used to force a redraw
+            updateInput: any,       // Whether to reset the input textarea
+            typing: boolean,           // Whether this reset should be careful to leave existing text (for compositing)
+            changeObjs: any,        // Accumulated changes, for firing change events
+            cursorActivityHandlers: any, // Set of handlers to fire cursorActivity on
+            cursorActivityCalled: any, // Tracks which cursorActivity handlers have been called already
+            selectionChanged: boolean, // Whether the selection needs to be redrawn
+            updateMaxLine: boolean,    // Set when the widest line needs to be determined anew
+            scrollLeft: any, scrollTop: any, // Intermediate scroll position, not pushed to DOM yet
+            scrollToPos: any,       // Used to scroll to a specific position
+            focus: boolean,
+            id: number           // Unique ID
+        }
     }
 
     interface EditorFromTextArea extends Editor {
