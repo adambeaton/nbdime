@@ -114,6 +114,9 @@ if 'setuptools' in sys.modules:
             'nbmerge = nbdime.nbmergeapp:main',
             'git-nbdifftool = nbdime.gitdifftool:main',
             'git-nbdiffdriver = nbdime.gitdiffdriver:main',
+        ],
+        'gui_scripts': [
+            'git-nbwebdifftool = nbdime.webapp.nbdifftool:main',
         ]
     }
     setup_args.pop('scripts', None)
