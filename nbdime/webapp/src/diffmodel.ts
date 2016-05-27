@@ -27,6 +27,7 @@ import {
 } from './patch';
 
 
+// DIFF MODELS:
 
 export interface IDiffModel {
     base: string;
@@ -85,6 +86,34 @@ export class DirectDiffModel extends DiffModel {
     }
 }
 
+
+export type Chunk = {from: number, to: number, additions: DiffRange[], deletions: DiffRange[]};
+
+export interface IDiffViewModel {
+    base: IEditorModel;
+    our: IEditorModel;
+    
+    additions: DiffRange[];
+    deletions: DiffRange[];
+    
+    getChunks(): Chunk[];
+    
+    unchanged(): boolean;
+}
+
+export class DiffViewModel implements IDiffViewModel {
+    constructor(public base: IEditorModel, public our: IEditorModel,
+                public additions: DiffRange[], public deletions: DiffRange[]) {
+    }
+    
+    getChunks(): Chunk[] { 
+    }
+
+    unchanged(): boolean {
+        return this.additions.length == 0 && this.deletions.length == 0;
+    }
+}
+
 export interface ICellDiffModel {
     source: IDiffModel;
     metadata: IDiffModel;
@@ -95,10 +124,10 @@ export interface ICellDiffModel {
     deleted: boolean;
     
     // All of these will have one local, and one remote model, although one entry may be null
-    source_editors: IEditorModel[];
-    metadata_editors: IEditorModel[];
-    outputs_editors: IEditorModel[];
-    output_areas: IOutputAreaModel[];
+    sourceView: IDiffViewModel;
+    metadataView: IDiffViewModel;
+    outputsView: IDiffViewModel;
+    outputAreas: IOutputAreaModel[];
 }
 
 
@@ -107,69 +136,38 @@ export interface ICellDiffModel {
  * CellDiffModel
  */
 export class BaseCellDiffModel implements ICellDiffModel {
-    initIOAreas() {
-        if (this.unchanged) {
-            // No changes, make only one editor
-            this.createInputs(1);
-            this.source_editors[0].text = this.source.base;
-            if (this.metadata) {
-                this.metadata_editors[0].text = this.metadata.base;
+    initViews() {
+        let constructor = this.constructor as typeof BaseCellDiffModel;
+        let base = !!this.source.base
+        let remote = !this.unchanged && !!this.source.remote;
+        this.sourceView  = constructor.createView(this.source, base, remote);
+        if (this.metadata) {
+            this.metadataView = constructor.createView(this.metadata, base, remote);
+        }
+        if (this.outputs) {
+            this.outputsView = constructor.createView(this.outputs, base, remote);
+            if (base) {
+                this.outputAreas.push(new OutputAreaModel());
             }
-            if (this.outputs) {
-                this.outputs_editors[0].text = this.outputs.base;
-            }
-        } else if (!this.source.remote) {
-            // Cell deleted
-            this.createInputs(1);
-            this.source_editors[0].text = this.source.base;
-            if (this.metadata) {
-                this.metadata_editors[0].text = this.metadata.base;
-            }
-            if (this.outputs) {
-                this.outputs_editors[0].text = this.outputs.base;
-            }
-        } else if (!this.source.base) {
-            // Cell added
-            this.createInputs(1);
-            this.source_editors[0].text = this.source.remote;
-            if (this.metadata) {
-                this.metadata_editors[0].text = this.metadata.remote;
-            }
-            if (this.outputs) {
-                this.outputs_editors[0].text = this.outputs.remote;
-            }
-        } else {
-            // Partial changes
-            this.createInputs(2);
-            this.source_editors[0].text = this.source.base;
-            this.source_editors[1].text = this.source.remote;
-            if (this.metadata) {
-                this.metadata_editors[0].text = this.metadata.base;
-                this.metadata_editors[1].text = this.metadata.remote;
-            }
-            if (this.outputs) {
-                this.outputs_editors[0].text = this.outputs.base;
-                this.outputs_editors[1].text = this.outputs.remote;
+            if (remote) {
+                this.outputAreas.push(new OutputAreaModel());
             }
         }
     }
     
-    createInputs(n_columns: number) {
-        for (var i=0; i < n_columns; i++) {
-            var editor = new EditorModel({readOnly: true});
-            this.source_editors.push(editor);
-            
-            if (this.metadata) {
-                editor = new EditorModel();
-                this.metadata_editors.push(editor);
-            }
-            if (this.outputs) {
-                editor = new EditorModel();
-                this.outputs_editors.push(editor);
-                
-                this.output_areas.push(new OutputAreaModel());
-            }
+    static createView(model: IDiffModel, base: boolean, remote: boolean): IDiffViewModel {
+        if (base && remote) {
+            let bEdit = new EditorModel({readOnly: true});
+            let rEdit = new EditorModel({readOnly: true});
+            bEdit.text = model.base;
+            rEdit.text = model.remote;
+            return new DiffViewModel(bEdit, rEdit, model.additions, model.deletions);
+        } else if (base || remote) {
+            let edit = new EditorModel({readOnly: true});
+            edit.text = base ? model.base : model.remote;
+            return new DiffViewModel(edit, null, [], []);
         }
+        return null;
     }
     
     get unchanged(): boolean {
@@ -195,10 +193,10 @@ export class BaseCellDiffModel implements ICellDiffModel {
     outputs: IDiffModel;
     
     // All of these will have one local, and one remote model, although one entry may be null
-    source_editors: IEditorModel[] = [];
-    metadata_editors: IEditorModel[] = [];
-    outputs_editors: IEditorModel[] = [];
-    output_areas: IOutputAreaModel[] = [];
+    sourceView: IDiffViewModel;
+    metadataView: IDiffViewModel;
+    outputsView: IDiffViewModel;
+    outputAreas: IOutputAreaModel[] = [];
 }
 
 export class PatchedCellDiffModel extends BaseCellDiffModel {
@@ -213,7 +211,7 @@ export class PatchedCellDiffModel extends BaseCellDiffModel {
             this.outputs = null;
         }
         
-        this.initIOAreas();
+        this.initViews();
     }
 }
 
@@ -228,7 +226,7 @@ export class UnchangedCellDiffModel extends BaseCellDiffModel {
             this.outputs = null;
         }
         
-        this.initIOAreas();
+        this.initViews();
     }
 }
 
@@ -243,7 +241,7 @@ export class AddedCellDiffModel extends BaseCellDiffModel {
             this.outputs = null;
         }
         
-        this.initIOAreas();
+        this.initViews();
     }
 }
 
@@ -258,11 +256,9 @@ export class DeletedCellDiffModel extends BaseCellDiffModel {
             this.outputs = null;
         }
         
-        this.initIOAreas();
+        this.initViews();
     }
 }
-
-
 
 
 export interface INotebookDiffModel {
