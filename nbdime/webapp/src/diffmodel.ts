@@ -87,7 +87,14 @@ export class DirectDiffModel extends DiffModel {
 }
 
 
-export type Chunk = {from: number, to: number, additions: DiffRange[], deletions: DiffRange[]};
+export type Chunk = {
+          editFrom: number,
+          editTo: number,
+          origFrom: number,
+          origTo: number,
+          additions: DiffRange[],
+          deletions: DiffRange[]
+};
 
 export interface IDiffViewModel {
     base: IEditorModel;
@@ -101,12 +108,55 @@ export interface IDiffViewModel {
     unchanged(): boolean;
 }
 
+
+
+function moveOver(pos: CodeMirror.Position, str: string, copy?: boolean, other?: CodeMirror.Position) {
+    var out = copy ? CodeMirror.Pos(pos.line, pos.ch) : pos, at = 0;
+    for (;;) {
+        var nl = str.indexOf("\n", at);
+        if (nl == -1) break;
+        ++out.line;
+        if (other) ++other.line;
+        at = nl + 1;
+    }
+    out.ch = (at ? 0 : out.ch) + (str.length - at);
+    if (other) other.ch = (at ? 0 : other.ch) + (str.length - at);
+    return out;
+}
+
 export class DiffViewModel implements IDiffViewModel {
     constructor(public base: IEditorModel, public our: IEditorModel,
                 public additions: DiffRange[], public deletions: DiffRange[]) {
     }
     
-    getChunks(): Chunk[] { 
+    getChunks(): Chunk[] {
+        var chunks: Chunk[] = [];
+        var startEdit = 0, startOrig = 0;
+        var edit = Pos(0, 0), orig = Pos(0, 0);
+        
+        this.additions[0].
+        
+        for (var i = 0; i < diff.length; ++i) { // for (var part of diff) {
+            var part = diff[i], tp = part[0];
+            if (tp == DIFF_OP.DIFF_EQUAL) {
+                var startOff = startOfLineClean(diff, i) ? 0 : 1;
+                var cleanFromEdit = edit.line + startOff, cleanFromOrig = orig.line + startOff;
+                moveOver(edit, part[1], null, orig);
+                var endOff = endOfLineClean(diff, i) ? 1 : 0;
+                var cleanToEdit = edit.line + endOff, cleanToOrig = orig.line + endOff;
+                if (cleanToEdit > cleanFromEdit) {
+                    if (i) chunks.push({origFrom: startOrig, origTo: cleanFromOrig,
+                                        editFrom: startEdit, editTo: cleanFromEdit});
+                    startEdit = cleanToEdit; startOrig = cleanToOrig;
+                }
+            } else {
+                moveOver(tp == DIFF_OP.DIFF_INSERT ? edit : orig, part[1]);
+            }
+        }
+        if (startEdit <= edit.line || startOrig <= orig.line)
+            chunks.push({origFrom: startOrig, origTo: orig.line + 1,
+                        editFrom: startEdit, editTo: edit.line + 1});
+        return chunks;
     }
 
     unchanged(): boolean {

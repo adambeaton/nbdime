@@ -32,7 +32,7 @@ import {
 
 import {
   NotebookDiffModel
-} from './model';
+} from './diffmodel';
 
 import {
   NotebookDiffWidget
