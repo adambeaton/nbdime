@@ -1,14 +1,14 @@
 "use strict";
 
 import {
-    DiffRange, JSON_INDENT, repeat_string, IDiffEntry, IDiffAdd, IDiffPatch, IDiffAddRange, IDiffRemoveRange
+    DiffRangeRaw, JSON_INDENT, repeat_string, IDiffEntry, IDiffAdd, IDiffPatch, IDiffAddRange, IDiffRemoveRange
 } from './diffutil';
 
 
 import stableStringify = require('json-stable-stringify');
 
 
-export type PatchResult = {remote: string, additions: DiffRange[], deletions: DiffRange[]};
+export type PatchResult = {remote: string, additions: DiffRangeRaw[], deletions: DiffRangeRaw[]};
 
 export
 namespace DiffOp {
@@ -74,7 +74,7 @@ function makeKeyString(key: string, level: number) {
     return repeat_string(JSON_INDENT, level) + "\"" + key + "\": ";
 }
 
-function offsetRanges(offset: number, additions: DiffRange[], deletions: DiffRange[]) {
+function offsetRanges(offset: number, additions: DiffRangeRaw[], deletions: DiffRangeRaw[]) {
     for (var a of additions) {
         a.offset(offset);
     }
@@ -83,7 +83,7 @@ function offsetRanges(offset: number, additions: DiffRange[], deletions: DiffRan
     }
 }
 
-function adjustRangesByJSONEscapes(jsonString: string, ranges: DiffRange[]) {
+function adjustRangesByJSONEscapes(jsonString: string, ranges: DiffRangeRaw[]) {
     // First find all escaped characters, and expansion coefficients
     var escapes = ["\\\"", "\\\\", "\\/", "\\b", "\\f", "\\n", "\\r", "\\t"];
     var unicodes = /\\u\d{4}/g;
@@ -130,8 +130,8 @@ function objectDiffOutput(base: Object, diff: IDiffEntry[], level: number) : Pat
     }
     let map: { [key: string]: any; } = base;
     var remote = "";
-    var additions: DiffRange[] = [];
-    var deletions: DiffRange[] = [];
+    var additions: DiffRangeRaw[] = [];
+    var deletions: DiffRangeRaw[] = [];
     let postfix = ",\n";
     
     var baseIndex = 0;
@@ -160,12 +160,12 @@ function objectDiffOutput(base: Object, diff: IDiffEntry[], level: number) : Pat
             if (valueIn(op, [DiffOp.ADD, DiffOp.REPLACE, DiffOp.REMOVE])) {
                 if (valueIn(op, [DiffOp.ADD, DiffOp.REPLACE])) {
                     let valr = stringify((e as IDiffAdd).value, level + 1, false) + postfix;
-                    additions.push(new DiffRange(remote.length, keyString.length + valr.length));
+                    additions.push(new DiffRangeRaw(remote.length, keyString.length + valr.length));
                     remote += keyString + valr;
                 }
                 if (valueIn(op, [DiffOp.REMOVE, DiffOp.REPLACE])) {
                     let valb = stringify(map[key], level + 1, false) + postfix;
-                    deletions.push(new DiffRange(baseIndex, keyString.length + valb.length));
+                    deletions.push(new DiffRangeRaw(baseIndex, keyString.length + valb.length));
                     baseIndex += valb.length;
                 }
             } else if (op == DiffOp.PATCH) {
@@ -204,8 +204,8 @@ function objectDiffOutput(base: Object, diff: IDiffEntry[], level: number) : Pat
 
 function listDiffOutput(base: Array<any>, diff: IDiffEntry[], level: number) : PatchResult {
     var remote = "";
-    var additions: DiffRange[] = [];
-    var deletions: DiffRange[] = [];
+    var additions: DiffRangeRaw[] = [];
+    var deletions: DiffRangeRaw[] = [];
     var baseIndex = 0;  // Position in base string
     let postfix = ",\n";
     
@@ -230,14 +230,14 @@ function listDiffOutput(base: Array<any>, diff: IDiffEntry[], level: number) : P
         if (op == DiffOp.SEQINSERT) {
             // Extend with new values directly
             let val = stringify((e as IDiffAddRange).valuelist, level + 1) + postfix;
-            additions.push(new DiffRange(remote.length, val.length));
+            additions.push(new DiffRangeRaw(remote.length, val.length));
             remote += val;
             skip = 0;
         }
         else if (op == DiffOp.SEQDELETE) {
             // Delete a number of values by skipping
             let val = stringify(base[index], level + 1) + postfix;
-            deletions.push(new DiffRange(baseIndex, val.length));
+            deletions.push(new DiffRangeRaw(baseIndex, val.length));
             baseIndex += val.length;
             skip = (e as IDiffRemoveRange).length;
         }
@@ -275,8 +275,8 @@ function listDiffOutput(base: Array<any>, diff: IDiffEntry[], level: number) : P
 }
 
 function stringDiffOuput(base: string, diff: IDiffEntry[], level: number) : PatchResult {
-    var additions: DiffRange[] = [];
-    var deletions: DiffRange[] = [];
+    var additions: DiffRangeRaw[] = [];
+    var deletions: DiffRangeRaw[] = [];
     var baseIndex= 0;
     // Index into obj, the next item to take unless diff says otherwise
     var take = 0;
@@ -293,13 +293,13 @@ function stringDiffOuput(base: string, diff: IDiffEntry[], level: number) : Patc
         
         if (op == DiffOp.SEQINSERT) {
             let added = (e as IDiffAddRange).valuelist;
-            additions.push(new DiffRange(remote.length, added.length));
+            additions.push(new DiffRangeRaw(remote.length, added.length));
             remote += added;
             skip = 0;
         } else if (op == DiffOp.SEQDELETE) {
             // Delete a number of values by skipping
             skip = (e as IDiffRemoveRange).length;
-            deletions.push(new DiffRange(baseIndex, skip));
+            deletions.push(new DiffRangeRaw(baseIndex, skip));
             baseIndex += skip;
         } else {
             throw "Invalid diff op on string: " + op;

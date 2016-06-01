@@ -16,6 +16,10 @@ declare namespace CodeMirror {
     var commands: any;
 
     var version: string;
+        
+    /** An object containing default values for all options.
+     * You can assign to its properties to modify defaults (though this won't affect editors that have already been created).*/
+    var defaults: any;
 
     /** If you want to define extra methods in terms of the CodeMirror API, it is possible to use defineExtension.
     This will cause the given value(usually a method) to be added to all CodeMirror instances created from then on. */

@@ -25,7 +25,7 @@ import {
 import * as CodeMirror from 'codemirror';
 
 import {
-    DiffView, MergeView
+    DiffView, MergeView, MergeViewEditorConfiguration
 } from './mergeview';
 
 import {
@@ -45,7 +45,7 @@ import {
 } from 'jupyter-js-notebook/lib/output-area';
 
 import {
-    IDiffEntry, DiffRange
+    IDiffEntry, DiffRangeRaw, DiffRangePos
 } from './diffutil';
 
 import {
@@ -182,17 +182,17 @@ class CellDiffWidget extends Panel {
         }
         
         // Add inputs and outputs, on a row-by-row basis
-        let sourceView = constructor.createView(model.source_editors, CURR_DIFF_CLASSES);
+        let sourceView = constructor.createView(model.sourceView, CURR_DIFF_CLASSES);
         sourceView.addClass(SOURCE_ROW_CLASS);
         this.addView(sourceView);
         
         if (model.metadata && !model.metadata.unchanged) {
-            let metadataView = constructor.createView(model.metadata_editors, CURR_DIFF_CLASSES);
+            let metadataView = constructor.createView(model.metadataView, CURR_DIFF_CLASSES);
             metadataView.addClass(METADATA_ROW_CLASS);
             this.addView(metadataView);
         }
         if (model.outputs && !model.outputs.unchanged) {
-            let outputsView = constructor.createView(model.outputs_editors, CURR_DIFF_CLASSES);
+            let outputsView = constructor.createView(model.outputsView, CURR_DIFF_CLASSES);
             outputsView.addClass(OUTPUTS_ROW_CLASS);
             this.addView(outputsView);
         }
@@ -230,25 +230,13 @@ class CellDiffWidget extends Panel {
  * NbdimeMergeView
  */
 class NbdimeMergeView extends Widget {
-    constructor(models: IEditorModel[], editorClasses: string[]) {
+    constructor(remote: IDiffViewModel, editorClasses: string[],
+                local?: IDiffViewModel, merged?: IEditorModel) {
         super();
-        if (models.length == 1) {
-            
-        }
-        let opts: CodeMirror.MergeView.MergeViewEditorConfiguration = {orig: null};
-        opts.allowEditingOriginals = false;
-        opts.readOnly = 'nocursor';
+        let opts: MergeViewEditorConfiguration = {remote: remote};
         opts.collapseIdentical = true;
-        if (models.length === 1) {
-            opts.value = models[0].text;
-        } else if (models.length === 2) {
-            opts.origLeft = models[0].text;
-            opts.value = models[1].text;
-        } else if (models.length === 3) {
-            opts.origLeft = models[0].text;
-            opts.value = models[1].text;
-            opts.origRight = models[2].text;
-        }
+        opts.local = local ? local : null;
+        opts.merged = merged ? merged : null;
         this._mergeview = new MergeView(this.node, opts);
         this._editors = [];
         if (this._mergeview.left) {
@@ -256,6 +244,9 @@ class NbdimeMergeView extends Widget {
         }
         if (this._mergeview.right) {
             this._editors.push(this._mergeview.right);
+        }
+        if (this._mergeview.merge) {
+            this._editors.push(this._mergeview.merge);
         }
         for (var edt of this._editors) {
            

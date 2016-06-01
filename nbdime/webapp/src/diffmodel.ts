@@ -19,12 +19,14 @@ import {
 } from 'jupyter-js-notebook/lib/notebook/nbformat';
 
 import {
-    get_diff_key, DiffRange, IDiffEntry, IDiffAddRange, IDiffRemoveRange, IDiffPatch
+    get_diff_key, DiffRangeRaw, DiffRangePos, IDiffEntry, IDiffAddRange, IDiffRemoveRange, IDiffPatch
 } from './diffutil';
     
 import {
     diffOutput, PatchResult, stringify, DiffOp
 } from './patch';
+
+import * as CodeMirror from 'codemirror';
 
 
 // DIFF MODELS:
@@ -33,8 +35,8 @@ export interface IDiffModel {
     base: string;
     remote: string;
     
-    additions: DiffRange[];
-    deletions: DiffRange[];
+    additions: DiffRangeRaw[];
+    deletions: DiffRangeRaw[];
     
     unchanged: boolean;
 }
@@ -43,8 +45,8 @@ export class DiffModel implements IDiffModel {
     constructor(
         public base: string,
         public remote:string,
-        public additions: DiffRange[],
-        public deletions: DiffRange[]) {
+        public additions: DiffRangeRaw[],
+        public deletions: DiffRangeRaw[]) {
         }
     
     get unchanged(): boolean {
@@ -54,7 +56,7 @@ export class DiffModel implements IDiffModel {
 }
 
 /**
- * CellDiffEntry
+ * PatchDiffModel
  */
 export class PatchDiffModel extends DiffModel {
     constructor(base: any, diff?: IDiffEntry[]) {
@@ -73,95 +75,251 @@ export class DirectDiffModel extends DiffModel {
     constructor(base: any, remote: any) {
         var base_str = (typeof base == "string") ? base as string : stringify(base);
         var remote_str = (typeof remote == "string") ? remote as string : stringify(remote);
-        var additions: DiffRange[] = [];
-        var deletions: DiffRange[] = []
+        var additions: DiffRangeRaw[] = [];
+        var deletions: DiffRangeRaw[] = []
         if (base === null) {
             // Added cell
-            additions.push(new DiffRange(0, remote_str.length));
+            additions.push(new DiffRangeRaw(0, remote_str.length));
         } else if (remote === null) {
             // Deleted cell
-            deletions.push(new DiffRange(0, base_str.length));
+            deletions.push(new DiffRangeRaw(0, base_str.length));
         }
         super(base_str, remote_str, additions, deletions);
     }
 }
 
 
-export type Chunk = {
-          editFrom: number,
-          editTo: number,
-          origFrom: number,
-          origTo: number,
-          additions: DiffRange[],
-          deletions: DiffRange[]
+export class Chunk {
+    constructor(
+          public editFrom: number,
+          public editTo: number,
+          public origFrom: number,
+          public origTo: number) {}
+    
+    inEdit(line: number) {
+        return line >= this.editFrom && line <= this.editTo;
+    }
+    
+    inOrig(line: number) {
+        return line >= this.origFrom && line <= this.origTo;
+    }
 };
 
 export interface IDiffViewModel {
     base: IEditorModel;
     our: IEditorModel;
     
-    additions: DiffRange[];
-    deletions: DiffRange[];
+    additions: DiffRangePos[];
+    deletions: DiffRangePos[];
     
     getChunks(): Chunk[];
     
     unchanged(): boolean;
+    added(): boolean;
+    deleted(): boolean;
 }
 
 
-
-function moveOver(pos: CodeMirror.Position, str: string, copy?: boolean, other?: CodeMirror.Position) {
-    var out = copy ? CodeMirror.Pos(pos.line, pos.ch) : pos, at = 0;
-    for (;;) {
-        var nl = str.indexOf("\n", at);
-        if (nl == -1) break;
-        ++out.line;
-        if (other) ++other.line;
-        at = nl + 1;
+/*
+function moveOver(pos: CodeMirror.Position, range: DiffRangePos, copy?: boolean, other?: CodeMirror.Position) {
+    var out = copy ? CodeMirror.Pos(pos.line, pos.ch) : pos;
+    let linediff = range.to.line - range.from.line;
+    out.line += linediff;
+    if (other) other.line += linediff;
+    if (linediff > 0) {
+        // New line added, so just take new position
+        out.ch = range.to.ch;
+        if (other) other.ch = range.to.ch;
+    } else {
+        // No newline, so simply increase ch
+        var chdiff = range.to.ch - range.from.ch;
+        out.ch += chdiff;
+        if (other) other.ch += chdiff;
     }
-    out.ch = (at ? 0 : out.ch) + (str.length - at);
-    if (other) other.ch = (at ? 0 : other.ch) + (str.length - at);
     return out;
 }
 
+class DiffIterator {
+    constructor(public ranges: DiffRangePos[][]) {
+        for (var r of ranges) {
+            this.indices.push(0);
+        }
+    }
+    
+    next(): {value: [DiffRangePos, number], done: boolean} {
+        let ret = {value: null, done: true};
+        // Check if any index is within bounds:
+        for (var i = 0; i < this.indices.length; i++) {
+            var idx = this.indices[i];
+            if (idx < this.ranges[i].length) 
+            {
+                ret.done = false;
+                break;
+            }
+        }
+        if (ret.done) return ret;
+        
+        let minRangeIdx, minRange: DiffRangePos;
+        for (var i = 0; i < this.ranges.length; i++) {
+            if (this.indices[i] < this.ranges.length) {
+                let el = this.ranges[i][this.indices[i]];
+                if (minRange === undefined ||
+                        el.from.line < minRange.from.line ||
+                        el.from.ch < minRange.from.ch) {
+                    minRange = el;
+                    minRangeIdx = i;
+                }
+            }
+        }
+        console.assert(minRangeIdx !== undefined);
+        ret.value = [minRange, minRangeIdx];
+        this.indices[minRangeIdx]++;
+        return ret;
+    }
+    
+    indices: number[];
+}
+*/
+
+function findLineNumber(nlPos: number[], index: number): number {
+    if (nlPos.length === 0) return 0;
+    var lineNo: number = null;
+    nlPos.some(function(el, i) {
+        if (el > index) {
+            lineNo = i;
+            return true;
+        }
+        return false;
+    });
+    if (lineNo === null) {
+        return nlPos.length;
+    }
+    return lineNo;
+}
+
+function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
+    // Find all newline's indices in text
+    let adIdx: number[] = [];
+    let i = -1;
+    while (-1 !== (i = text.indexOf("\n", i + 1))) {
+        adIdx.push(i);
+    }
+    let result: DiffRangePos[] = [];
+    // Find line numbers from raw index
+    for (let r of raws) {
+        let line = findLineNumber(adIdx, r.from);
+        let lineStartIdx = line > 0 ? adIdx[line-1] : 0; 
+        let from = CodeMirror.Pos(line, r.from - lineStartIdx);
+        line = findLineNumber(adIdx, r.to);
+        lineStartIdx = line > 0 ? adIdx[line-1] : 0; 
+        let to = CodeMirror.Pos(line, r.to - lineStartIdx);
+        result.push(new DiffRangePos(from, to));
+    }
+    return result;
+}
+
+
 export class DiffViewModel implements IDiffViewModel {
     constructor(public base: IEditorModel, public our: IEditorModel,
-                public additions: DiffRange[], public deletions: DiffRange[]) {
+                additions: DiffRangeRaw[], deletions: DiffRangeRaw[]) {
+        if (base === null) {
+            console.assert(deletions.length === 0);
+            this.deletions = [];
+        } else {
+            this.deletions = raw2Pos(deletions, base.text);
+        }
+        if (our === null) {
+            console.assert(additions.length === 0);
+            this.additions = [];
+        } else {
+            this.additions = raw2Pos(additions, our.text);
+        }
     }
     
     getChunks(): Chunk[] {
         var chunks: Chunk[] = [];
-        var startEdit = 0, startOrig = 0;
-        var edit = Pos(0, 0), orig = Pos(0, 0);
+        var startEdit = 0, startOrig = 0, editOffset = 0;
+        var edit = CodeMirror.Pos(0, 0), orig = CodeMirror.Pos(0, 0);
+        let ia = 0, id = 0;
         
-        this.additions[0].
-        
-        for (var i = 0; i < diff.length; ++i) { // for (var part of diff) {
-            var part = diff[i], tp = part[0];
-            if (tp == DIFF_OP.DIFF_EQUAL) {
-                var startOff = startOfLineClean(diff, i) ? 0 : 1;
-                var cleanFromEdit = edit.line + startOff, cleanFromOrig = orig.line + startOff;
-                moveOver(edit, part[1], null, orig);
-                var endOff = endOfLineClean(diff, i) ? 1 : 0;
-                var cleanToEdit = edit.line + endOff, cleanToOrig = orig.line + endOff;
-                if (cleanToEdit > cleanFromEdit) {
-                    if (i) chunks.push({origFrom: startOrig, origTo: cleanFromOrig,
-                                        editFrom: startEdit, editTo: cleanFromEdit});
-                    startEdit = cleanToEdit; startOrig = cleanToOrig;
+        let current: Chunk = null;
+        let isAddition: boolean = null;
+        let range: DiffRangePos = null;
+        for (;;) {
+            // Figure out which element to take next
+            if (ia < this.additions.length) {
+                if (id < this.deletions.length) {
+                    let ra = this.additions[ia], rd = this.deletions[id];
+                    if (ra.from.line < rd.from.line - editOffset || (ra.from.line == rd.from.line - editOffset &&
+                            ra.from.ch <= rd.from.ch)) { // TODO: Character offsets should also be used
+                        isAddition = true;
+                    } else {
+                        isAddition = false;
+                    }
+                } else {
+                    // No more deletions
+                    isAddition = true;
+                }
+            } else if (id < this.deletions.length) {
+                // No more additions
+                isAddition = false;
+            } else {
+                break;
+            }
+            
+            if (isAddition) {
+                range = this.additions[ia++];
+            } else {
+                range = this.deletions[id++];
+            }
+            let linediff = range.to.line - range.from.line;
+            if (!current) {
+                if (isAddition) {
+                    startEdit = range.from.line;
+                    startOrig = startEdit - editOffset;
+                    current = new Chunk(startEdit, startEdit + linediff, startOrig, startOrig);
+                } else {
+                    startOrig = range.from.line;
+                    startEdit = startOrig + editOffset;
+                    current = new Chunk(startEdit, startEdit, startOrig, startOrig + linediff);
+                }
+            }
+            if (isAddition) {
+                if (current.inEdit(range.from.line)) {
+                    current.editTo += linediff;
+                } else {
+                    // No overlap with chunk, start new one
+                    chunks.push(current);
+                    current = null;
                 }
             } else {
-                moveOver(tp == DIFF_OP.DIFF_INSERT ? edit : orig, part[1]);
+                if (current.inOrig(range.from.line)) {
+                    current.origTo += linediff;
+                } else {
+                    // No overlap with chunk, start new one
+                    chunks.push(current);
+                    current = null;
+                }
             }
+            editOffset += isAddition ? linediff : -linediff;
         }
-        if (startEdit <= edit.line || startOrig <= orig.line)
-            chunks.push({origFrom: startOrig, origTo: orig.line + 1,
-                        editFrom: startEdit, editTo: edit.line + 1});
         return chunks;
     }
 
     unchanged(): boolean {
         return this.additions.length == 0 && this.deletions.length == 0;
     }
+
+    added(): boolean {
+        return (this.base === null);
+    }
+
+    deleted(): boolean {
+        return (this.our === null);
+    }
+    
+    additions: DiffRangePos[];
+    deletions: DiffRangePos[];
 }
 
 export interface ICellDiffModel {
@@ -188,8 +346,8 @@ export interface ICellDiffModel {
 export class BaseCellDiffModel implements ICellDiffModel {
     initViews() {
         let constructor = this.constructor as typeof BaseCellDiffModel;
-        let base = !!this.source.base
-        let remote = !this.unchanged && !!this.source.remote;
+        let base = this.source.base !== null;
+        let remote = !this.unchanged && this.source.remote !== null;
         this.sourceView  = constructor.createView(this.source, base, remote);
         if (this.metadata) {
             this.metadataView = constructor.createView(this.metadata, base, remote);
@@ -215,7 +373,7 @@ export class BaseCellDiffModel implements ICellDiffModel {
         } else if (base || remote) {
             let edit = new EditorModel({readOnly: true});
             edit.text = base ? model.base : model.remote;
-            return new DiffViewModel(edit, null, [], []);
+            return new DiffViewModel(base ? edit : null, base? null : edit, [], []);
         }
         return null;
     }

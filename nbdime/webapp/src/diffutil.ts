@@ -23,7 +23,7 @@ export function get_diff_key(diff: IDiffEntry[], key:string) : IDiffEntry[] {
     return null;
 }
 
-export class DiffRange {
+export class DiffRangeRaw {
     constructor(public from: number, length: number) {
         this.to = from + length;
     }
@@ -34,6 +34,11 @@ export class DiffRange {
     }
     
     to: number;
+}
+
+export class DiffRangePos {
+    constructor(public from: CodeMirror.Position, public to: CodeMirror.Position) {
+    }
 }
 
 export interface IDiffEntryBase {

@@ -5,9 +5,16 @@
 }
 
 .CodeMirror-merge, .CodeMirror-merge .CodeMirror {
-  height: 350px;
+  height: auto;
 }
 
+.jp-Notebook-diff {
+    width: 90%;
+    margin: auto;
+}
+
+.CodeMirror-merge-1pane .CodeMirror-merge-pane { width: 94%; }
+.CodeMirror-merge-1pane .CodeMirror-merge-gap { width: 6%; }
 .CodeMirror-merge-2pane .CodeMirror-merge-pane { width: 47%; }
 .CodeMirror-merge-2pane .CodeMirror-merge-gap { width: 6%; }
 .CodeMirror-merge-3pane .CodeMirror-merge-pane { width: 31%; }
@@ -27,7 +34,7 @@
 .CodeMirror-merge-gap {
   z-index: 2;
   display: inline-block;
-  height: 100%;
+  height: 50px;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
   overflow: hidden;
