@@ -121,68 +121,6 @@ export interface IDiffViewModel {
     deleted(): boolean;
 }
 
-
-/*
-function moveOver(pos: CodeMirror.Position, range: DiffRangePos, copy?: boolean, other?: CodeMirror.Position) {
-    var out = copy ? CodeMirror.Pos(pos.line, pos.ch) : pos;
-    let linediff = range.to.line - range.from.line;
-    out.line += linediff;
-    if (other) other.line += linediff;
-    if (linediff > 0) {
-        // New line added, so just take new position
-        out.ch = range.to.ch;
-        if (other) other.ch = range.to.ch;
-    } else {
-        // No newline, so simply increase ch
-        var chdiff = range.to.ch - range.from.ch;
-        out.ch += chdiff;
-        if (other) other.ch += chdiff;
-    }
-    return out;
-}
-
-class DiffIterator {
-    constructor(public ranges: DiffRangePos[][]) {
-        for (var r of ranges) {
-            this.indices.push(0);
-        }
-    }
-    
-    next(): {value: [DiffRangePos, number], done: boolean} {
-        let ret = {value: null, done: true};
-        // Check if any index is within bounds:
-        for (var i = 0; i < this.indices.length; i++) {
-            var idx = this.indices[i];
-            if (idx < this.ranges[i].length) 
-            {
-                ret.done = false;
-                break;
-            }
-        }
-        if (ret.done) return ret;
-        
-        let minRangeIdx, minRange: DiffRangePos;
-        for (var i = 0; i < this.ranges.length; i++) {
-            if (this.indices[i] < this.ranges.length) {
-                let el = this.ranges[i][this.indices[i]];
-                if (minRange === undefined ||
-                        el.from.line < minRange.from.line ||
-                        el.from.ch < minRange.from.ch) {
-                    minRange = el;
-                    minRangeIdx = i;
-                }
-            }
-        }
-        console.assert(minRangeIdx !== undefined);
-        ret.value = [minRange, minRangeIdx];
-        this.indices[minRangeIdx]++;
-        return ret;
-    }
-    
-    indices: number[];
-}
-*/
-
 function findLineNumber(nlPos: number[], index: number): number {
     if (nlPos.length === 0) return 0;
     var lineNo: number = null;
