@@ -86,6 +86,10 @@ function on_diff(e: Event) {
 
 function on_pop_state(e: PopStateEvent) {
     if (e.state) {
+        var eb = (document.getElementById("diff-base") as HTMLInputElement);
+        var er = (document.getElementById("diff-remote") as HTMLInputElement);
+        eb.value = e.state.base;
+        er.value = e.state.remote;
         request_diff(e.state.base, e.state.remote);
     }
 }
