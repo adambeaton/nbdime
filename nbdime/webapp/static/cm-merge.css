@@ -34,13 +34,13 @@
 .CodeMirror-merge-gap {
   z-index: 2;
   display: inline-block;
-  height: 50px;
+  height: 100%;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
   overflow: hidden;
   border-left: 1px solid #ddd;
   border-right: 1px solid #ddd;
-  position: relative;
+  position: absolute;
   background: #f8f8f8;
 }
 
@@ -80,15 +80,11 @@
 .CodeMirror-merge-copybuttons-right .CodeMirror-merge-copy { right: 2px; }
 
 .CodeMirror-merge-r-inserted, .CodeMirror-merge-l-inserted {
-  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAGUlEQVQI12MwuCXy3+CWyH8GBgYGJgYkAABZbAQ9ELXurwAAAABJRU5ErkJggg==);
-  background-position: bottom left;
-  background-repeat: repeat-x;
+    background-color: #a6f3a6;
 }
 
 .CodeMirror-merge-r-deleted, .CodeMirror-merge-l-deleted {
-  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAGUlEQVQI12M4Kyb2/6yY2H8GBgYGJgYkAABURgPz6Ks7wQAAAABJRU5ErkJggg==);
-  background-position: bottom left;
-  background-repeat: repeat-x;
+    background-color: #f8cbcb;
 }
 
 .CodeMirror-merge-r-chunk { background: #ffffe0; }

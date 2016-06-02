@@ -79,9 +79,11 @@ export class DirectDiffModel extends DiffModel {
         var deletions: DiffRangeRaw[] = []
         if (base === null) {
             // Added cell
+            base_str = null;
             additions.push(new DiffRangeRaw(0, remote_str.length));
         } else if (remote === null) {
             // Deleted cell
+            remote_str = null;
             deletions.push(new DiffRangeRaw(0, base_str.length));
         }
         super(base_str, remote_str, additions, deletions);
@@ -208,10 +210,10 @@ function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
     // Find line numbers from raw index
     for (let r of raws) {
         let line = findLineNumber(adIdx, r.from);
-        let lineStartIdx = line > 0 ? adIdx[line-1] : 0; 
+        let lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0; 
         let from = CodeMirror.Pos(line, r.from - lineStartIdx);
         line = findLineNumber(adIdx, r.to);
-        lineStartIdx = line > 0 ? adIdx[line-1] : 0; 
+        lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0; 
         let to = CodeMirror.Pos(line, r.to - lineStartIdx);
         result.push(new DiffRangePos(from, to));
     }
@@ -264,6 +266,7 @@ export class DiffViewModel implements IDiffViewModel {
                 // No more additions
                 isAddition = false;
             } else {
+                if (current) { chunks.push(current); }
                 break;
             }
             
@@ -275,24 +278,16 @@ export class DiffViewModel implements IDiffViewModel {
             let linediff = range.to.line - range.from.line;
             if (!current) {
                 if (isAddition) {
-                    startEdit = range.from.line;
-                    startOrig = startEdit - editOffset;
-                    current = new Chunk(startEdit, startEdit + linediff, startOrig, startOrig);
-                } else {
                     startOrig = range.from.line;
                     startEdit = startOrig + editOffset;
-                    current = new Chunk(startEdit, startEdit, startOrig, startOrig + linediff);
+                    current = new Chunk(startEdit, startEdit + linediff + 1, startOrig, startOrig + 1);
+                } else {
+                    startEdit = range.from.line;
+                    startOrig = startEdit - editOffset;
+                    current = new Chunk(startEdit, startEdit + 1, startOrig, startOrig + linediff + 1);
                 }
             }
             if (isAddition) {
-                if (current.inEdit(range.from.line)) {
-                    current.editTo += linediff;
-                } else {
-                    // No overlap with chunk, start new one
-                    chunks.push(current);
-                    current = null;
-                }
-            } else {
                 if (current.inOrig(range.from.line)) {
                     current.origTo += linediff;
                 } else {
@@ -300,8 +295,16 @@ export class DiffViewModel implements IDiffViewModel {
                     chunks.push(current);
                     current = null;
                 }
+            } else {
+                if (current.inEdit(range.from.line)) {
+                    current.editTo += linediff;
+                } else {
+                    // No overlap with chunk, start new one
+                    chunks.push(current);
+                    current = null;
+                }
             }
-            editOffset += isAddition ? linediff : -linediff;
+            editOffset += isAddition ? -linediff : linediff;
         }
         return chunks;
     }

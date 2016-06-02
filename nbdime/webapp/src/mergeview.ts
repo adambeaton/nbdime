@@ -17,6 +17,10 @@ import {
     IDiffViewModel, Chunk
 } from './diffmodel';
 
+import {
+    DiffRangePos
+} from './diffutil';
+
 var Pos = CodeMirror.Pos;
 var svgNS = "http://www.w3.org/2000/svg";
 
@@ -44,7 +48,8 @@ var updating = false;
 
 export
 class DiffView {
-    constructor(public model: IDiffViewModel, public type: string, public alignChunks: (force?: boolean) => void) {
+    constructor(public model: IDiffViewModel, public type: string,
+            public alignChunks: (force?: boolean) => void) {
         this.classes = type == "left"
             ? { chunk: "CodeMirror-merge-l-chunk",
                 start: "CodeMirror-merge-l-chunk-start",
@@ -85,8 +90,8 @@ class DiffView {
     }
     
     registerUpdate() {
-        var edit = {from: 0, to: 0, marked: []};
-        var orig = {from: 0, to: 0, marked: []};
+        var editState = {from: 0, to: 0, marked: []};
+        var origState = {from: 0, to: 0, marked: []};
         var debounceChange, updatingFast = false;
         var self: DiffView = this;
         function update(mode?: string) {
@@ -94,13 +99,15 @@ class DiffView {
             updatingFast = false;
             if (mode == "full") {
                 if (self.copyButtons) clear(self.copyButtons);
-                //clearMarks(this.edit, edit.marked, this.classes);
-                //clearMarks(this.orig, orig.marked, this.classes);
-                edit.from = edit.to = orig.from = orig.to = 0;
+                clearMarks(self.edit, editState.marked, self.classes);
+                clearMarks(self.orig, origState.marked, self.classes);
+                editState.from = editState.to = origState.from = origState.to = 0;
             }
             if (self.showDifferences) {
-                //updateMarks(this.edit, this.diff, edit, DIFF_OP.DIFF_INSERT, this.classes);
-                //updateMarks(this.orig, this.diff, orig, DIFF_OP.DIFF_DELETE, this.classes);
+                self.updateMarks(self.orig, self.model.additions,
+                    editState, DIFF_OP.DIFF_INSERT);
+                self.updateMarks(self.edit, self.model.deletions,
+                    origState, DIFF_OP.DIFF_DELETE);
             }
 
             self.alignChunks();
@@ -207,6 +214,40 @@ class DiffView {
         this.lockButton.innerHTML = val ? "\u21db\u21da" : "\u21db&nbsp;&nbsp;\u21da";
     }
     
+    
+
+    // FIXME maybe add a margin around viewport to prevent too many updates
+    updateMarks(editor: CodeMirror.Editor, diff: DiffRangePos[],
+            state: any, type: DIFF_OP) {
+        let classes = this.classes;
+        let self = this;
+        function markChunk(editor, from, to) {
+            for (var i = from; i < to; ++i) {
+                var line = editor.addLineClass(i, "background", classes.chunk);
+                if (i == from) editor.addLineClass(line, "background", classes.start);
+                if (i == to - 1) editor.addLineClass(line, "background", classes.end);
+                state.marked.push(line);
+            }
+            // When the chunk is empty, make sure a horizontal line shows up
+            if (from == to) {
+                state.marked.push(editor.addLineClass(from, "background", classes.start));
+            }
+        }
+        var cls = type == DIFF_OP.DIFF_DELETE ? classes.del : classes.insert;
+        editor.operation(function() {
+            let edit = editor == self.edit;
+            clearMarks(editor, state.marked, classes);
+            highlightChars(editor, diff, state, cls);
+            for (let c of self.chunks) {
+                if (edit) {
+                    markChunk(editor, c.editFrom, c.editTo);
+                } else {
+                    markChunk(editor, c.origFrom, c.origTo);
+                }
+            }
+        });
+    }
+    
     classes: DiffClasses;
     showDifferences: boolean;
     dealigned: boolean;
@@ -222,11 +263,35 @@ class DiffView {
 }
 
 
-function getOffsets(editor, around) {
+function getOffsets(editor: CodeMirror.Editor, around) {
     var bot = around.after;
-    if (bot == null) bot = editor.lastLine() + 1;
+    if (bot == null) bot = editor.getDoc().lastLine() + 1;
     return {top: editor.heightAtLine(around.before || 0, "local"),
             bot: editor.heightAtLine(bot, "local")};
+}
+
+// Updating the marks for editor content
+
+function clearMarks(editor: CodeMirror.Editor, arr: any[], classes: DiffClasses) {
+    for (var i = 0; i < arr.length; ++i) {
+        var mark = arr[i];
+        if ('clear' in mark) {
+            mark.clear();
+        } else if (mark.parent) {
+            editor.removeLineClass(mark, "background", classes.chunk);
+            editor.removeLineClass(mark, "background", classes.start);
+            editor.removeLineClass(mark, "background", classes.end);
+        }
+    }
+    arr.length = 0;
+}
+
+function highlightChars(editor: CodeMirror.Editor, ranges: DiffRangePos[],
+        state: any, cls: string) {
+    let doc = editor.getDoc();
+    for (var r of ranges) {
+        state.marked.push(doc.markText(r.from, r.to, {className: cls}));
+    }
 }
 
 
@@ -385,7 +450,9 @@ class MergeView {
         this.base = null;
         var self = this;
         this.diffViews = [];
-        options.value = options.remote.base.text;
+        this.aligners = [];
+        options.value = (options.remote.base ?
+            options.remote.base.text : options.remote.our.text);
         options.lineNumbers = options.lineNumbers !== false;
         
         /** 
@@ -467,8 +534,6 @@ class MergeView {
             this.base.operation(function() {
                 collapseIdenticalStretches(self, options.collapseIdentical);
             });
-
-        this.aligners = [];
         if (this.left || this.right) {
             (this.left || this.right).alignChunks(true);
         }
