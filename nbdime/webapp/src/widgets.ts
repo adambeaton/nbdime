@@ -93,11 +93,10 @@ class NotebookDiffWidget extends Widget {
         super();
         this._model = model;
         this._rendermime = rendermime;
-        this.layout = new PanelLayout();
+        let layout = this.layout = new PanelLayout();
         
         this.addClass(NBDIFF_CLASS);
         
-        let layout = this.layout as PanelLayout;
         layout.addChild(new MetadataDiffWidget(model.metadata));
         for (var c of model.cells) {
             layout.addChild(new CellDiffWidget(c, rendermime));
