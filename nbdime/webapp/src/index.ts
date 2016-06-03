@@ -198,8 +198,8 @@ function initialize() {
     let close_btn = document.getElementById('nbdime-close') as HTMLButtonElement;
     if (close_btn) {
         close_btn.onclick = closeTool;
+        window.onbeforeunload = closeTool;
     }
-    window.onbeforeunload = closeTool;
 }
 
 window.onload = initialize;
