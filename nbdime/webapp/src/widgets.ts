@@ -29,7 +29,7 @@ import {
 } from './mergeview';
 
 import {
-    IEditorModel, IEditorWidget
+    IEditorModel
 } from 'jupyter-js-notebook/lib/editor';
 
 import {

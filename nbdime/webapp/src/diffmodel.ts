@@ -7,10 +7,6 @@ import {
 } from 'jupyter-js-notebook/lib/editor';
 
 import {
-    InputAreaModel, IInputAreaModel
-} from 'jupyter-js-notebook/lib/input-area';
-
-import {
     IOutputAreaModel, OutputAreaModel
 } from 'jupyter-js-notebook/lib/output-area';
 
