@@ -7,6 +7,14 @@ import {
 } from 'jupyter-js-ui/lib/rendermime';
 
 import {
+	loadModeByMIME
+} from 'jupyter-js-ui/lib/codemirror';
+
+import {
+    CodeMirrorWidget
+} from 'jupyter-js-ui/lib/codemirror/widget';
+
+import {
     Widget, ResizeMessage
 } from 'phosphor-widget';
 
@@ -24,13 +32,13 @@ import {
 
 import * as CodeMirror from 'codemirror';
 
+import 'codemirror/mode/meta';
+
+import 'codemirror/lib/codemirror.css';
+
 import {
     DiffView, MergeView, MergeViewEditorConfiguration
 } from './mergeview';
-
-import {
-    IEditorModel
-} from 'jupyter-js-notebook/lib/editor';
 
 import {
   sanitize
@@ -46,7 +54,7 @@ import {
 
 import {
     ICellDiffModel, INotebookDiffModel, IDiffModel,
-    IStringDiffModel, StringDiffModel //, IRenderableDiffModel, RenderableDiffModel
+    IStringDiffModel, StringDiffModel, IOutputDiffModel, OutputDiffModel
 } from './diffmodel';
 
 
@@ -112,7 +120,6 @@ const safeOutputs = ['text/plain', 'text/latex', 'image/png', 'image/jpeg',
  * A list of outputs that are sanitizable.
  */
 const sanitizable = ['text/svg', 'text/html'];
-
 
 
 /**
@@ -190,7 +197,7 @@ class NotebookDiffWidget extends Widget {
         
         layout.addChild(new MetadataDiffWidget(model.metadata));
         for (var c of model.cells) {
-            layout.addChild(new CellDiffWidget(c, rendermime));
+            layout.addChild(new CellDiffWidget(c, rendermime, model.mimetype));
         }
     }
     
@@ -231,7 +238,8 @@ class CellDiffWidget extends Panel {
     /**
      * 
      */
-    constructor(model: ICellDiffModel, rendermime: RenderMime<Widget>) {
+    constructor(model: ICellDiffModel, rendermime: RenderMime<Widget>,
+            public mimetype: string) {
         super();
         this.addClass(CELLDIFF_CLASS);
         this._model = model;
@@ -248,13 +256,13 @@ class CellDiffWidget extends Panel {
         if (model.added) {
             let widget = new Widget();
             widget.node.textContent = "Cell added";
-            this.addWidget(widget);
+            this.addChild(widget);
             this.addClass(CELLADDED_CLASS);
             CURR_DIFF_CLASSES = DIFF_CLASSES.slice(0, 1);
         } else if (model.deleted) {
             let widget = new Widget();
             widget.node.textContent = "Cell deleted";
-            this.addWidget(widget);
+            this.addChild(widget);
             this.addClass(CELLDELETED_CLASS);
             CURR_DIFF_CLASSES = DIFF_CLASSES.slice(1, 2);
         } else if (model.unchanged) {
@@ -266,26 +274,22 @@ class CellDiffWidget extends Panel {
         // Add inputs and outputs, on a row-by-row basis
         let sourceView = this.createView(model.source, CURR_DIFF_CLASSES);
         sourceView.addClass(SOURCE_ROW_CLASS);
-        this.addWidget(sourceView);
+        this.addChild(sourceView);
         
         if (model.metadata && !model.metadata.unchanged) {
             let metadataView = this.createView(model.metadata, CURR_DIFF_CLASSES);
             metadataView.addClass(METADATA_ROW_CLASS);
-            this.addWidget(metadataView);
+            this.addChild(metadataView);
         }
-        if (model.outputs) {
+        if (model.outputs && model.outputs.length > 0) {
+            let container = new Panel();
             for (let o of model.outputs) {
-                // Take one of three actions, depending on output types
-                // 1) Text-type output: Show a MergeView with text diff.
-                // 2) Renderable types: Side-by-side comparison.
-                // 3) Unknown types: Stringified JSON diff.
-                
-                // Case 1:
                 let outputsWidget = this.createView(o, CURR_DIFF_CLASSES);
-                outputsWidget.addClass(OUTPUTS_ROW_CLASS);
-                this.addWidget(outputsWidget);
-                
+                container.addChild(outputsWidget);
             }
+            let collapser = new CollapsibleWidget(container, "Output changed");
+            collapser.addClass(OUTPUTS_ROW_CLASS); 
+            this.addChild(collapser);
         }
     }
     
@@ -295,20 +299,27 @@ class CellDiffWidget extends Panel {
     createView(model: IDiffModel, editorClasses: string[]): Widget {
         let view: Widget = null;
         if (model instanceof StringDiffModel) {
-            view = new NbdimeMergeView(model, editorClasses);
-        } /*else if (model instanceof RenderableDiffModel) {
-            view = new RenderableView(model, editorClasses, this._rendermime);
-        }*/ else {
+            view = new NbdimeMergeView(model as IStringDiffModel, editorClasses);
+        } else if (model instanceof OutputDiffModel) {
+            // Take one of three actions, depending on output types
+            // 1) Text-type output: Show a MergeView with text diff.
+            // 2) Renderable types: Side-by-side comparison.
+            // 3) Unknown types: Stringified JSON diff.
+            let tmodel = model as OutputDiffModel;
+            let key = tmodel.innerStringKey();
+            if (key){
+                model = tmodel.stringify(key);
+                view = new NbdimeMergeView(model as IStringDiffModel, editorClasses);
+            } else {
+                view = new RenderableView(tmodel, editorClasses, this._rendermime);
+            }
+        } else {
             throw "Unrecognized model type."
         }
         if (model.collapsible) {
             view = new CollapsibleWidget(view, model.collapsibleHeader, model.startCollapsed);
         }
         return view;
-    }
-    
-    public addWidget(widget: Widget) {
-        (this.layout as PanelLayout).addChild(widget);
     }
     
     /**
@@ -330,7 +341,7 @@ class CellDiffWidget extends Panel {
  */
 class NbdimeMergeView extends Widget {
     constructor(remote: IStringDiffModel, editorClasses: string[],
-                local?: IStringDiffModel, merged?: IEditorModel) {
+                local?: IStringDiffModel, merged?: any) {
         super();
         let opts: MergeViewEditorConfiguration = {remote: remote};
         opts.collapseIdentical = true;
@@ -347,9 +358,16 @@ class NbdimeMergeView extends Widget {
         if (this._mergeview.merge) {
             this._editors.push(this._mergeview.merge);
         }
+            
+        if (remote.mimetype) {
+            // Set the editor mode to the MIME type.
+            for (let e of this._editors) {
+                loadModeByMIME(e.orig, remote.mimetype);
+            }
+            loadModeByMIME(this._mergeview.base, remote.mimetype);
+        }
     }
     
-    protected _models: IEditorModel[];
     protected _mergeview: MergeView;
     protected _editors: DiffView[];
 }
@@ -358,8 +376,8 @@ class NbdimeMergeView extends Widget {
 /**
  * RenderableView
  */
-/*class RenderableView extends Widget {
-    constructor(remote: IRenderableDiffModel, editorClass: string[],
+class RenderableView extends Widget {
+    constructor(remote: IOutputDiffModel, editorClass: string[],
                 rendermime: RenderMime<Widget>) {
         super();
         this._rendermime = rendermime;
@@ -373,7 +391,7 @@ class NbdimeMergeView extends Widget {
             (this.layout as PanelLayout).addChild(widget);
             widget.addClass(editorClass[ci++]);
         }
-        if (rdata) {
+        if (rdata && rdata !== bdata) {
             let widget = this.createOutput(rdata, true);
             (this.layout as PanelLayout).addChild(widget);
             widget.addClass(editorClass[ci++]);
@@ -457,5 +475,5 @@ class NbdimeMergeView extends Widget {
 
     _sanitized: boolean;
     _rendermime: RenderMime<Widget>;
-}*/
+}
 

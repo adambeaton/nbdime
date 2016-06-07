@@ -22,7 +22,7 @@ namespace DiffOp {
 
 export function patch(base: (string | Array<any> | any), diff: IDiffEntry[]) : (string | Array<any> | any) {
     if (typeof base == "string") {
-        return patchSequence(base, diff);
+        return patchString(base, diff, 0).remote;
     } else if (base instanceof Array) {
         return patchSequence(base, diff)
     } else {
@@ -32,7 +32,7 @@ export function patch(base: (string | Array<any> | any), diff: IDiffEntry[]) : (
 
 function patchSequence(base: Array<any>, diff: IDiffEntry[]): Array<any> {
     // The patched sequence to build and return
-    let patched: string | any = typeof base == "string" ? "" : [];
+    let patched = [];
     // Index into obj, the next item to take unless diff says otherwise
     let take = 0;
     let skip = 0;
@@ -47,7 +47,7 @@ function patchSequence(base: Array<any>, diff: IDiffEntry[]): Array<any> {
 
         if (op === DiffOp.SEQINSERT) {
             // Extend with new values directly
-            patched += (e as IDiffAddRange).valuelist;
+            patched = patched.concat((e as IDiffAddRange).valuelist as Array<any>)
             skip = 0;
         } else if (op === DiffOp.SEQDELETE) {
             // Delete a number of values by skipping

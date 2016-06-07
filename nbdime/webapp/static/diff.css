@@ -19,12 +19,12 @@
 
 .jp-Cell-twoway .jp-Cell-base {
     float: left;
-    width: 50%;
+    width: 47%;
 }
 
 .jp-Cell-twoway .jp-Cell-remote {
     float: right;
-    width: 50%;
+    width: 47%;
 }
 
 .jp-Cell-added > div:first-child {
@@ -38,6 +38,10 @@
 }
 
 .jp-Cell-added .jp-Cellrow-metadata {
+    display: none;
+}
+
+.jp-Cell-unchanged .jp-Cellrow-outputs {
     display: none;
 }
 
