@@ -8,11 +8,6 @@
   height: auto;
 }
 
-.jp-Notebook-diff {
-    width: 90%;
-    margin: auto;
-}
-
 .CodeMirror-merge-1pane .CodeMirror-merge-pane { width: 94%; }
 .CodeMirror-merge-1pane .CodeMirror-merge-gap { width: 6%; }
 .CodeMirror-merge-2pane .CodeMirror-merge-pane { width: 47%; }

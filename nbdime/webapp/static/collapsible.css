@@ -31,7 +31,6 @@
 }
 
 .jp-Collapsible-slider {
-	overflow-y: scroll;
 	/* complete liquid height based on the parent's height!! */
     height:100%;
 
