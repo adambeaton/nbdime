@@ -23,7 +23,7 @@ import {
 } from './diffutil';
     
 import {
-    diffOutput, PatchResult, stringify, DiffOp
+    patchStringified, PatchResult, stringify, DiffOp, patch
 } from './patch';
 
 import * as CodeMirror from 'codemirror';
@@ -61,7 +61,7 @@ export class DiffModel implements IDiffModel {
 export class PatchDiffModel extends DiffModel {
     constructor(base: any, diff?: IDiffEntry[]) {
         var base_str = (typeof base == "string") ? base as string : stringify(base);
-        let out = diffOutput(base, diff);
+        let out = patchStringified(base, diff);
         super(base_str, out.remote, out.additions, out.deletions);
     }
 }
