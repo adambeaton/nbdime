@@ -28,33 +28,150 @@ import * as CodeMirror from 'codemirror';
 // DIFF MODELS:
 
 export interface IDiffModel {
+    unchanged: boolean;
+    added: boolean;
+    deleted: boolean;
+    
+    collapsible: boolean;
+    collapsibleHeader: string;
+    startCollapsed: boolean;
+}
+
+export interface IStringDiffModel extends IDiffModel {  
     base: string;
     remote: string;
     
-    additions: DiffRangeRaw[];
-    deletions: DiffRangeRaw[];
+    additions: DiffRangePos[];
+    deletions: DiffRangePos[];
     
-    unchanged: boolean;
+    getChunks(): Chunk[];
 }
 
-export class DiffModel implements IDiffModel {
+export class StringDiffModel implements IStringDiffModel {
     constructor(
-        public base: string,
-        public remote:string,
-        public additions: DiffRangeRaw[],
-        public deletions: DiffRangeRaw[]) {
+            public base: string,
+            public remote:string,
+            additions: DiffRangeRaw[],
+            deletions: DiffRangeRaw[],
+            collapsible?: boolean,
+            header?: string,
+            collapsed?: boolean) {
+        if (base === null) {
+            console.assert(deletions.length === 0);
+            this.deletions = [];
+        } else {
+            this.deletions = raw2Pos(deletions, base);
         }
+        if (remote === null) {
+            console.assert(additions.length === 0);
+            this.additions = [];
+        } else {
+            this.additions = raw2Pos(additions, remote);
+        }
+        
+        this.collapsible = collapsible === true;
+        if (this.collapsible) {
+            this.collapsibleHeader = header ? header : "";
+            this.startCollapsed = collapsed;
+        }
+    }
+    
+    getChunks(): Chunk[] {
+        var chunks: Chunk[] = [];
+        var startEdit = 0, startOrig = 0, editOffset = 0;
+        var edit = CodeMirror.Pos(0, 0), orig = CodeMirror.Pos(0, 0);
+        let ia = 0, id = 0;
+        
+        let current: Chunk = null;
+        let isAddition: boolean = null;
+        let range: DiffRangePos = null;
+        for (;;) {
+            // Figure out which element to take next
+            if (ia < this.additions.length) {
+                if (id < this.deletions.length) {
+                    let ra = this.additions[ia], rd = this.deletions[id];
+                    if (ra.from.line < rd.from.line - editOffset || (ra.from.line == rd.from.line - editOffset &&
+                            ra.from.ch <= rd.from.ch)) { // TODO: Character offsets should also be used
+                        isAddition = true;
+                    } else {
+                        isAddition = false;
+                    }
+                } else {
+                    // No more deletions
+                    isAddition = true;
+                }
+            } else if (id < this.deletions.length) {
+                // No more additions
+                isAddition = false;
+            } else {
+                if (current) { chunks.push(current); }
+                break;
+            }
+            
+            if (isAddition) {
+                range = this.additions[ia++];
+            } else {
+                range = this.deletions[id++];
+            }
+            let linediff = range.to.line - range.from.line;
+            if (!current) {
+                if (isAddition) {
+                    startOrig = range.from.line;
+                    startEdit = startOrig + editOffset;
+                    current = new Chunk(startEdit, startEdit + linediff + 1, startOrig, startOrig + 1);
+                } else {
+                    startEdit = range.from.line;
+                    startOrig = startEdit - editOffset;
+                    current = new Chunk(startEdit, startEdit + 1, startOrig, startOrig + linediff + 1);
+                }
+            }
+            if (isAddition) {
+                if (current.inOrig(range.from.line)) {
+                    current.origTo += linediff;
+                } else {
+                    // No overlap with chunk, start new one
+                    chunks.push(current);
+                    current = null;
+                }
+            } else {
+                if (current.inEdit(range.from.line)) {
+                    current.editTo += linediff;
+                } else {
+                    // No overlap with chunk, start new one
+                    chunks.push(current);
+                    current = null;
+                }
+            }
+            editOffset += isAddition ? -linediff : linediff;
+        }
+        return chunks;
+    }
     
     get unchanged(): boolean {
         return this.base == this.remote;
         //return !this.additions && !this.deletions;
     }
+    
+    get added(): boolean {
+        return this.base === null;
+    }
+    
+    get deleted(): boolean {
+        return this.remote === null;
+    }
+    
+    collapsible: boolean;
+    collapsibleHeader: string;
+    startCollapsed: boolean;
+    
+    additions: DiffRangePos[];
+    deletions: DiffRangePos[];
 }
 
 /**
  * PatchDiffModel
  */
-export class PatchDiffModel extends DiffModel {
+export class PatchDiffModel extends StringDiffModel {
     constructor(base: any, diff?: IDiffEntry[]) {
         var base_str = (typeof base == "string") ? base as string : stringify(base);
         let out = patchStringified(base, diff);
@@ -67,7 +184,7 @@ export class PatchDiffModel extends DiffModel {
  * 
  * Class for making cell diff models for added, removed or unchanged cells.
  */
-export class DirectDiffModel extends DiffModel {
+export class DirectDiffModel extends StringDiffModel {
     constructor(base: any, remote: any) {
         var base_str = (typeof base == "string") ? base as string : stringify(base);
         var remote_str = (typeof remote == "string") ? remote as string : stringify(remote);
@@ -157,19 +274,7 @@ function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
 
 export class DiffViewModel implements IDiffViewModel {
     constructor(public base: IEditorModel, public our: IEditorModel,
-                additions: DiffRangeRaw[], deletions: DiffRangeRaw[]) {
-        if (base === null) {
-            console.assert(deletions.length === 0);
-            this.deletions = [];
-        } else {
-            this.deletions = raw2Pos(deletions, base.text);
-        }
-        if (our === null) {
-            console.assert(additions.length === 0);
-            this.additions = [];
-        } else {
-            this.additions = raw2Pos(additions, our.text);
-        }
+                public additions: DiffRangePos[], public deletions: DiffRangePos[]) {
     }
     
     getChunks(): Chunk[] {
@@ -254,15 +359,12 @@ export class DiffViewModel implements IDiffViewModel {
     deleted(): boolean {
         return (this.our === null);
     }
-    
-    additions: DiffRangePos[];
-    deletions: DiffRangePos[];
 }
 
 export interface ICellDiffModel {
     source: IDiffModel;
     metadata: IDiffModel;
-    outputs: IDiffModel;
+    outputs: IDiffModel[];
     
     unchanged: boolean;
     added: boolean;
@@ -272,7 +374,6 @@ export interface ICellDiffModel {
     sourceView: IDiffViewModel;
     metadataView: IDiffViewModel;
     outputsView: IDiffViewModel;
-    outputAreas: IOutputAreaModel[];
 }
 
 
@@ -289,18 +390,9 @@ export class BaseCellDiffModel implements ICellDiffModel {
         if (this.metadata) {
             this.metadataView = constructor.createView(this.metadata, base, remote);
         }
-        if (this.outputs) {
-            this.outputsView = constructor.createView(this.outputs, base, remote);
-            if (base) {
-                this.outputAreas.push(new OutputAreaModel());
-            }
-            if (remote) {
-                this.outputAreas.push(new OutputAreaModel());
-            }
-        }
     }
     
-    static createView(model: IDiffModel, base: boolean, remote: boolean): IDiffViewModel {
+    static createView(model: IStringDiffModel, base: boolean, remote: boolean): IDiffViewModel {
         if (base && remote) {
             let bEdit = new EditorModel({readOnly: true});
             let rEdit = new EditorModel({readOnly: true});
@@ -317,31 +409,25 @@ export class BaseCellDiffModel implements ICellDiffModel {
     
     get unchanged(): boolean {
         return this.source.unchanged && 
-            (this.metadata ? this.metadata.unchanged : true) &&
-            (this.outputs ? this.outputs.unchanged : true);
+            (this.metadata ? this.metadata.unchanged : true);
     }
     
     get deleted(): boolean {
-        return !this.source.remote && 
-            this.metadata ? !this.metadata.remote : true &&
-            this.outputs ? !this.outputs.remote : true;
+        return this.source.deleted || this.metadata.deleted;
     }
     
     get added(): boolean {
-        return !this.source.base &&
-            this.metadata ? !this.metadata.base : true &&
-            this.outputs ? !this.outputs.base : true;
+        return this.source.added || this.metadata.added;
     }
     
-    source: IDiffModel;
-    metadata: IDiffModel;
-    outputs: IDiffModel;
+    source: IStringDiffModel;
+    metadata: IStringDiffModel;
+    outputs: IDiffModel[];
     
     // All of these will have one local, and one remote model, although one entry may be null
     sourceView: IDiffViewModel;
     metadataView: IDiffViewModel;
     outputsView: IDiffViewModel;
-    outputAreas: IOutputAreaModel[] = [];
 }
 
 export class PatchedCellDiffModel extends BaseCellDiffModel {
@@ -351,7 +437,7 @@ export class PatchedCellDiffModel extends BaseCellDiffModel {
         this.metadata = (base.metadata === undefined ?
             null : new PatchDiffModel(base.metadata, get_diff_key(diff, "metadata")));
         if (base.cell_type === "code" && (base as ICodeCell).outputs) {
-            this.outputs = new PatchDiffModel((base as ICodeCell).outputs, get_diff_key(diff, "outputs"));
+            this.outputs = null;
         } else {
             this.outputs = null;
         }
@@ -366,7 +452,7 @@ export class UnchangedCellDiffModel extends BaseCellDiffModel {
         this.source = new DirectDiffModel(base.source, base.source);
         this.metadata = base.metadata === undefined ? null : new DirectDiffModel(base.metadata, base.metadata);
         if (base.cell_type === "code" && (base as ICodeCell).outputs) {
-            this.outputs = new DirectDiffModel((base as ICodeCell).outputs, (base as ICodeCell).outputs);
+            this.outputs = null;
         } else {
             this.outputs = null;
         }
@@ -381,7 +467,7 @@ export class AddedCellDiffModel extends BaseCellDiffModel {
         this.source = new DirectDiffModel(null, remote.source);
         this.metadata = remote.metadata === undefined ? null : new DirectDiffModel(null, remote.metadata);
         if (remote.cell_type === "code" && (remote as ICodeCell).outputs) {
-            this.outputs = new DirectDiffModel(null, (remote as ICodeCell).outputs);
+            this.outputs = null;
         } else {
             this.outputs = null;
         }
@@ -396,7 +482,7 @@ export class DeletedCellDiffModel extends BaseCellDiffModel {
         this.source = new DirectDiffModel(base.source, null);
         this.metadata = base.metadata === undefined ? null : new DirectDiffModel(base.metadata, null);
         if (base.cell_type === "code" && (base as ICodeCell).outputs) {
-            this.outputs = new DirectDiffModel((base as ICodeCell).outputs, null);
+            this.outputs = null;
         } else {
             this.outputs = null;
         }

@@ -14,7 +14,7 @@ import {
 } from 'jupyter-js-notebook/lib/editor';
 
 import {
-    IDiffViewModel, Chunk
+    IStringDiffModel, Chunk
 } from './diffmodel';
 
 import {
@@ -48,7 +48,7 @@ var updating = false;
 
 export
 class DiffView {
-    constructor(public model: IDiffViewModel, public type: string,
+    constructor(public model: IStringDiffModel, public type: string,
             public alignChunks: (force?: boolean) => void) {
         this.classes = type == "left"
             ? { chunk: "CodeMirror-merge-l-chunk",
@@ -68,7 +68,7 @@ class DiffView {
     init(pane: HTMLElement, edit: CodeMirror.Editor, options: CodeMirror.MergeView.MergeViewEditorConfiguration) {
         this.edit = edit;
         (this.edit.state.diffViews || (this.edit.state.diffViews = [])).push(this);
-        let orig = this.model.our.text;
+        let orig = this.model.remote;
         this.orig = CodeMirror(pane, copyObj({value: orig}, copyObj(options)));
         this.orig.state.diffViews = [this];
 
@@ -410,13 +410,13 @@ export interface MergeViewEditorConfiguration extends CodeMirror.EditorConfigura
      * Provides remote diff of document to be shown on the right of the base.
      * To create a diff view, provide only remote.
      */
-    remote: IDiffViewModel;
+    remote: IStringDiffModel;
 
     /**
      * Provides local diff of the document to be shown on the left of the base.
      * To create a diff view, omit local.
      */
-    local?: IDiffViewModel;
+    local?: IStringDiffModel;
     
     /**
      * Provides the partial merge input for a three-way merge.
@@ -451,8 +451,8 @@ class MergeView {
         var self = this;
         this.diffViews = [];
         this.aligners = [];
-        options.value = (options.remote.base ?
-            options.remote.base.text : options.remote.our.text);
+        options.value = (options.remote.base !== null ?
+            options.remote.base : options.remote.remote);
         options.lineNumbers = options.lineNumbers !== false;
         
         /** 
@@ -500,12 +500,12 @@ class MergeView {
             // Base always used
             var basePane = elt("div", null, "CodeMirror-merge-pane");
             wrap.push(basePane);
-            if (remote.unchanged() || remote.added() || remote.deleted()) {
-                if (remote.unchanged()) {
+            if (remote.unchanged || remote.added || remote.deleted) {
+                if (remote.unchanged) {
                     basePane.className += " CodeMirror-merge-pane-unchanged";
-                } else if (remote.added()) {
+                } else if (remote.added) {
                     basePane.className += " CodeMirror-merge-pane-added";
-                } else if (remote.deleted()) {
+                } else if (remote.deleted) {
                     basePane.className += " CodeMirror-merge-pane-deleted";
                 }
                 var panes = 1;

@@ -33,11 +33,11 @@ import {
 } from 'jupyter-js-notebook/lib/editor';
 
 import {
-    InputAreaWidget, InputAreaModel, IInputAreaModel
-} from 'jupyter-js-notebook/lib/input-area';
+  sanitize
+} from 'sanitizer';
 
 import {
-    MimeBundle
+    MimeBundle, IOutput, IExecuteResult, IDisplayData, IStream, IError
 } from 'jupyter-js-notebook/lib/notebook/nbformat';
 
 import {
@@ -45,12 +45,8 @@ import {
 } from 'jupyter-js-notebook/lib/output-area';
 
 import {
-    IDiffEntry, DiffRangeRaw, DiffRangePos
-} from './diffutil';
-
-import {
-    ICellDiffModel, INotebookDiffModel, NotebookDiffModel, IDiffModel,
-    IDiffViewModel, DiffViewModel
+    ICellDiffModel, INotebookDiffModel, IDiffModel,
+    IStringDiffModel, StringDiffModel //, IRenderableDiffModel, RenderableDiffModel
 } from './diffmodel';
 
 
@@ -93,6 +89,29 @@ const COLLAPISBLE_SLIDER = 'jp-Collapsible-slider';
 const COLLAPSIBLE_OPEN = 'jp-Collapsible-opened';
 const COLLAPSIBLE_CLOSED = 'jp-Collapsible-closed';
 const COLLAPSIBLE_CONTAINER = 'jp-Collapsible-container';
+
+
+// Class names copied from OutputAreaWidget code:
+const OUTPUT_CLASS = 'jp-OutputArea-output';
+const EXECUTE_CLASS = 'jp-OutputArea-executeResult';
+const DISPLAY_CLASS = 'jp-OutputArea-displayData';
+const STDOUT_CLASS = 'jp-OutputArea-stdout';
+const STDERR_CLASS = 'jp-OutputArea-stderr';
+const ERROR_CLASS = 'jp-Output-error';
+const PROMPT_CLASS = 'jp-OutputArea-prompt';
+const RESULT_CLASS = 'jp-OutputArea-result';
+
+
+/**
+ * A list of outputs considered safe.
+ */
+const safeOutputs = ['text/plain', 'text/latex', 'image/png', 'image/jpeg',
+                     'application/vnd.jupyter.console-text'];
+
+/**
+ * A list of outputs that are sanitizable.
+ */
+const sanitizable = ['text/svg', 'text/html'];
 
 
 
@@ -210,24 +229,6 @@ class MetadataDiffWidget extends Widget {
 export
 class CellDiffWidget extends Panel {
     /**
-     * Create a new view.
-     */
-    static createView(model: IDiffViewModel, editorClasses: string[]): NbdimeMergeView {
-        return new NbdimeMergeView(model, editorClasses);
-    }
-    
-    
-    /**
-     * Create a new collapsible view.
-     */
-    static createCollapsibleView(model: IDiffViewModel, editorClasses: string[],
-            header?: string, collapsed?: boolean): CollapsibleWidget {
-        let view = new NbdimeMergeView(model, editorClasses);
-        let collapser = new CollapsibleWidget(view, header, collapsed);
-        return collapser;
-    }
-
-    /**
      * 
      */
     constructor(model: ICellDiffModel, rendermime: RenderMime<Widget>) {
@@ -240,7 +241,6 @@ class CellDiffWidget extends Panel {
     }
     
     protected init() {
-        let constructor = this.constructor as typeof CellDiffWidget;
         var model = this.model;
 
         // Add "cell added/deleted" notifiers, as appropriate
@@ -264,22 +264,47 @@ class CellDiffWidget extends Panel {
         }
         
         // Add inputs and outputs, on a row-by-row basis
-        let sourceView = constructor.createView(model.sourceView, CURR_DIFF_CLASSES);
+        let sourceView = this.createView(model.source, CURR_DIFF_CLASSES);
         sourceView.addClass(SOURCE_ROW_CLASS);
         this.addWidget(sourceView);
         
         if (model.metadata && !model.metadata.unchanged) {
-            let metadataCollapser = constructor.createCollapsibleView(
-                model.metadataView, CURR_DIFF_CLASSES, "Metadata changed", true);
-            metadataCollapser.addClass(METADATA_ROW_CLASS);
-            this.addWidget(metadataCollapser);
+            let metadataView = this.createView(model.metadata, CURR_DIFF_CLASSES);
+            metadataView.addClass(METADATA_ROW_CLASS);
+            this.addWidget(metadataView);
         }
-        if (model.outputs && !model.outputs.unchanged) {
-            let outputsView = constructor.createCollapsibleView(
-                model.outputsView, CURR_DIFF_CLASSES, "Output changed", false);
-            outputsView.addClass(OUTPUTS_ROW_CLASS);
-            this.addWidget(outputsView);
+        if (model.outputs) {
+            for (let o of model.outputs) {
+                // Take one of three actions, depending on output types
+                // 1) Text-type output: Show a MergeView with text diff.
+                // 2) Renderable types: Side-by-side comparison.
+                // 3) Unknown types: Stringified JSON diff.
+                
+                // Case 1:
+                let outputsWidget = this.createView(o, CURR_DIFF_CLASSES);
+                outputsWidget.addClass(OUTPUTS_ROW_CLASS);
+                this.addWidget(outputsWidget);
+                
+            }
         }
+    }
+    
+    /**
+     * Create a new sub-view.
+     */
+    createView(model: IDiffModel, editorClasses: string[]): Widget {
+        let view: Widget = null;
+        if (model instanceof StringDiffModel) {
+            view = new NbdimeMergeView(model, editorClasses);
+        } /*else if (model instanceof RenderableDiffModel) {
+            view = new RenderableView(model, editorClasses, this._rendermime);
+        }*/ else {
+            throw "Unrecognized model type."
+        }
+        if (model.collapsible) {
+            view = new CollapsibleWidget(view, model.collapsibleHeader, model.startCollapsed);
+        }
+        return view;
     }
     
     public addWidget(widget: Widget) {
@@ -304,8 +329,8 @@ class CellDiffWidget extends Panel {
  * NbdimeMergeView
  */
 class NbdimeMergeView extends Widget {
-    constructor(remote: IDiffViewModel, editorClasses: string[],
-                local?: IDiffViewModel, merged?: IEditorModel) {
+    constructor(remote: IStringDiffModel, editorClasses: string[],
+                local?: IStringDiffModel, merged?: IEditorModel) {
         super();
         let opts: MergeViewEditorConfiguration = {remote: remote};
         opts.collapseIdentical = true;
@@ -328,3 +353,109 @@ class NbdimeMergeView extends Widget {
     protected _mergeview: MergeView;
     protected _editors: DiffView[];
 }
+
+
+/**
+ * RenderableView
+ */
+/*class RenderableView extends Widget {
+    constructor(remote: IRenderableDiffModel, editorClass: string[],
+                rendermime: RenderMime<Widget>) {
+        super();
+        this._rendermime = rendermime;
+        let bdata = remote.base as IOutput;
+        let rdata = remote.remote as IOutput;
+        this.layout = new PanelLayout();
+
+        let ci = 0;
+        if (bdata){
+            let widget = this.createOutput(bdata, true);
+            (this.layout as PanelLayout).addChild(widget);
+            widget.addClass(editorClass[ci++]);
+        }
+        if (rdata) {
+            let widget = this.createOutput(rdata, true);
+            (this.layout as PanelLayout).addChild(widget);
+            widget.addClass(editorClass[ci++]);
+        }
+    }
+
+    protected createOutput(output: IOutput, trusted: boolean): Widget {
+        let widget = new Panel();
+        widget.addClass(OUTPUT_CLASS);
+        let bundle: MimeBundle;
+        this._sanitized = false;
+        switch (output.output_type) {
+        case 'execute_result':
+            bundle = (output as IExecuteResult).data;
+            widget.addClass(EXECUTE_CLASS);
+            let prompt = new Widget();
+            prompt.addClass(PROMPT_CLASS);
+            let count = (output as IExecuteResult).execution_count;
+            prompt.node.textContent = `Out[${count === null ? ' ' : count}]:`;
+            widget.addChild(prompt);
+            break;
+        case 'display_data':
+            bundle = (output as IDisplayData).data;
+            widget.addClass(DISPLAY_CLASS);
+            break;
+        case 'stream':
+            bundle = {'application/vnd.jupyter.console-text': (output as IStream).text};
+            if ((output as IStream).name === 'stdout') {
+                widget.addClass(STDOUT_CLASS);
+            } else {
+                widget.addClass(STDERR_CLASS);
+            }
+            break;
+        case 'error':
+            let out: IError = output as IError;
+            let traceback = out.traceback.join('\n');
+            bundle = {'application/vnd.jupyter.console-text': traceback || `${out.ename}: ${out.evalue}`};
+            widget.addClass(ERROR_CLASS);
+            break;
+        default:
+            console.error(`Unrecognized output type: ${output.output_type}`);
+            bundle = {};
+        }
+
+        // Sanitize outputs as needed.
+        if (!trusted) {
+            let keys = Object.keys(bundle);
+            for (let key of keys) {
+                if (safeOutputs.indexOf(key) !== -1) {
+                    continue;
+                } else if (sanitizable.indexOf(key) !== -1) {
+                    this._sanitized = true;
+                    let out = bundle[key];
+                    if (typeof out === 'string') {
+                        bundle[key] = sanitize(out);
+                    } else {
+                        console.log('Ignoring unsanitized ' + key + ' output; could not sanitize because output is not a string.');
+                        delete bundle[key];
+                    }
+                } else {
+                    this._sanitized = true;
+                    // Don't display if we don't know how to sanitize it.
+                    console.log('Ignoring untrusted ' + key + ' output.');
+                    delete bundle[key];
+                }
+            }
+        }
+
+        if (bundle) {
+            let child = this._rendermime.render(bundle);
+            if (child) {
+                child.addClass(RESULT_CLASS);
+                widget.addChild(child);
+            } else {
+                console.log('Did not find renderer for output mimebundle.');
+                console.log(bundle);
+            }
+        }
+        return widget;
+    }
+
+    _sanitized: boolean;
+    _rendermime: RenderMime<Widget>;
+}*/
+
