@@ -209,6 +209,7 @@ export class Chunk {
 
 export class PatchDiffModel extends StringDiffModel {
     constructor(base: any, diff?: IDiffEntry[]) {
+        console.assert(!!diff, "Patch model needs diff.");
         var base_str = (typeof base == "string") ? base as string : stringify(base);
         let out = patchStringified(base, diff);
         super(base_str, out.remote, out.additions, out.deletions);
@@ -323,7 +324,7 @@ export class OutputDiffModel implements IOutputDiffModel {
         let remote = key ? getKeyed(this.remote, key) : this.remote;
         let diff = this.diff && key ? getKeyed(this.diff, key, get_diff_key) : this.diff;
         let model: IStringDiffModel = null;
-        if (this.unchanged || this.added || this.deleted) {
+        if (this.unchanged || this.added || this.deleted || !diff) {
             model = new DirectDiffModel(base, remote);
         } else {
             model = new PatchDiffModel(base, diff);
@@ -364,8 +365,10 @@ export class BaseCellDiffModel implements ICellDiffModel {
     get unchanged(): boolean {
         let unchanged = this.source.unchanged;
         unchanged = unchanged && (this.metadata ? this.metadata.unchanged : true);
-        for (let o of this.outputs) {
-            unchanged = unchanged && o.unchanged;
+        if (this.outputs) {
+            for (let o of this.outputs) {
+                unchanged = unchanged && o.unchanged;
+            }
         }
         return unchanged;
     }
@@ -389,6 +392,14 @@ export class BaseCellDiffModel implements ICellDiffModel {
             model.mimetype = (cell as IRawCell).metadata.format;
         }
     }
+
+    setMetadataCollapsible() {
+        if (this.metadata) {
+            this.metadata.collapsible = true;
+            this.metadata.collapsibleHeader = "Metadata changed";
+            this.metadata.startCollapsed = true;
+        }
+    }
     
     source: IDiffModel;
     metadata: IDiffModel;
@@ -398,10 +409,19 @@ export class BaseCellDiffModel implements ICellDiffModel {
 export class PatchedCellDiffModel extends BaseCellDiffModel {
     constructor(base: ICell, diff: IDiffEntry[], nbMimetype: string) {
         super();
-        this.source = new PatchDiffModel(base.source, get_diff_key(diff, "source"));
+        let subDiff = get_diff_key(diff, "source");
+        if (subDiff) {
+            this.source = new PatchDiffModel(base.source, subDiff);
+        } else {
+            this.source = new DirectDiffModel(base.source, base.source);
+        }
         this.setMimetypeFromCellType(base, this.source as IStringDiffModel, nbMimetype);
+        subDiff = get_diff_key(diff, "metadata");
         this.metadata = (base.metadata === undefined ?
-            null : new PatchDiffModel(base.metadata, get_diff_key(diff, "metadata")));
+            null : subDiff ? 
+                new PatchDiffModel(base.metadata, subDiff) : 
+                new DirectDiffModel(base.metadata, base.metadata));
+        this.setMetadataCollapsible();
         if (base.cell_type === "code" && (base as ICodeCell).outputs) {
             this.outputs = makeOutputModels((base as ICodeCell).outputs, null,
                 get_diff_key(diff, "outputs"));
@@ -417,6 +437,7 @@ export class UnchangedCellDiffModel extends BaseCellDiffModel {
         this.source = new DirectDiffModel(base.source, base.source);
         this.setMimetypeFromCellType(base, this.source as IStringDiffModel, nbMimetype);
         this.metadata = base.metadata === undefined ? null : new DirectDiffModel(base.metadata, base.metadata);
+        this.setMetadataCollapsible();
         if (base.cell_type === "code" && (base as ICodeCell).outputs) {
             this.outputs = makeOutputModels((base as ICodeCell).outputs,
                 (base as ICodeCell).outputs);
@@ -432,6 +453,7 @@ export class AddedCellDiffModel extends BaseCellDiffModel {
         this.source = new DirectDiffModel(null, remote.source);
         this.setMimetypeFromCellType(remote, this.source as IStringDiffModel, nbMimetype);
         this.metadata = remote.metadata === undefined ? null : new DirectDiffModel(null, remote.metadata);
+        this.setMetadataCollapsible();
         if (remote.cell_type === "code" && (remote as ICodeCell).outputs) {
             this.outputs = makeOutputModels(null, (remote as ICodeCell).outputs);
         } else {
@@ -446,6 +468,7 @@ export class DeletedCellDiffModel extends BaseCellDiffModel {
         this.source = new DirectDiffModel(base.source, null);
         this.setMimetypeFromCellType(base, this.source as IStringDiffModel, nbMimetype);
         this.metadata = base.metadata === undefined ? null : new DirectDiffModel(base.metadata, null);
+        this.setMetadataCollapsible();
         if (base.cell_type === "code" && (base as ICodeCell).outputs) {
             this.outputs = makeOutputModels((base as ICodeCell).outputs, null);
         } else {
@@ -528,6 +551,9 @@ export class NotebookDiffModel implements INotebookDiffModel {
     constructor(base: INotebookContent, diff: IDiffEntry[]) {
         let metaDiff = get_diff_key(diff, "metadata");
         this.metadata = (base.metadata || metaDiff) ? new PatchDiffModel(base.metadata, metaDiff) : null;
+        this.metadata.collapsible = true;
+        this.metadata.collapsibleHeader = "Notebook metadata changed";
+        this.metadata.startCollapsed = true;
         this.mimetype = base.metadata.language_info.mimetype;
         this.cells = [];
         var take = 0;
