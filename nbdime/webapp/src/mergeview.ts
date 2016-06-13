@@ -25,20 +25,20 @@ var Pos = CodeMirror.Pos;
 var svgNS = "http://www.w3.org/2000/svg";
 
  
-enum DIFF_OP {
+export enum DIFF_OP {
     DIFF_DELETE = -1,
     DIFF_INSERT = 1,
     DIFF_EQUAL = 0
 }
 
-enum EventDirection {
+export enum EventDirection {
     INCOMING,
     OUTGOING
 }
 
 type GDiffEntry = [DIFF_OP, string];
 type GDiff = GDiffEntry[];
-type DiffClasses = {chunk: string, start: string, end: string, insert: string, del: string, connect: string};
+export type DiffClasses = {chunk: string, start: string, end: string, insert: string, del: string, connect: string};
 
 
 CodeMirror.defaults.autoRefresh = true;
@@ -186,20 +186,16 @@ class DiffView {
         
         // Position to update to
         other.state.scrollPosition = editor.getScrollInfo();
-        console.log(type == EventDirection.INCOMING ? "INCOMING" : "OUTGOING");
-        console.log("Updating scrollPosition:" + other.state.scrollPosition.left);
         
         // If ticking, we already have a scroll queued
         if (other.state.scrollTicking) return;
         var sInfo = other.getScrollInfo();
         // Don't queue an event if already synced.
         if (other.state.scrollPosition.top == sInfo.top && other.state.scrollPosition.left == sInfo.left) return;
-        console.log("Queue scroll from: " + sInfo.left);
         // Throttle by requestAnimationFrame().
         // If event is outgoing, this will lead to a one frame delay of other DiffViews
         var self = this;
         window.requestAnimationFrame(function() {
-            console.log("Perform scroll to: " + other.state.scrollPosition.left);
             other.scrollTo(other.state.scrollPosition.left, other.state.scrollPosition.top);
             other.state.scrollTicking = false;
             other.state.scrollSetBy = self;
@@ -300,6 +296,9 @@ function highlightChars(editor: CodeMirror.Editor, ranges: DiffRangePos[],
 
 function getMatchingOrigLine(editLine: number, chunks: Chunk[]): number {
     var editStart = 0, origStart = 0;
+    // Start values correspond to either the start of the chunk,
+    // or the start of a preceding unmodified part before the chunk.
+    // It is the difference between these two that is interesting.
     for (var i = 0; i < chunks.length; i++) {
         var chunk = chunks[i];
         if (chunk.editTo > editLine && chunk.editFrom <= editLine) return null;
@@ -307,7 +306,7 @@ function getMatchingOrigLine(editLine: number, chunks: Chunk[]): number {
         editStart = chunk.editTo;
         origStart = chunk.origTo;
     }
-    return origStart + (editLine - editStart);
+    return editLine + (origStart - editStart);
 }
 
 /**
@@ -372,7 +371,7 @@ function alignLines(cm: CodeMirror.Editor[], lines: number[], aligners): void {
     for (var i = 0; i < cm.length; i++) if (lines[i] !== null) {
         var diff = maxOffset - offset[i];
         if (diff > 1)
-        aligners.push(padAbove(cm[i], lines[i], diff));
+            aligners.push(padAbove(cm[i], lines[i], diff));
     }
 }
 
@@ -611,46 +610,6 @@ class MergeView {
     aligners: CodeMirror.LineWidget[];
 }
 
-function asString(obj: string | CodeMirror.Editor): string {
-    if (typeof obj == "string") return obj as string;
-    else return (obj as CodeMirror.Editor).getValue();
-}
-
-function endOfLineClean(diff: GDiff, i: number): boolean {
-    if (i == diff.length - 1) return true;
-    var next = diff[i + 1][1];
-    if (next.length == 1 || next.charCodeAt(0) != 10) return false;
-    if (i == diff.length - 2) return true;
-    next = diff[i + 2][1];
-    return next.length > 1 && next.charCodeAt(0) == 10;
-}
-
-function startOfLineClean(diff: GDiff, i: number): boolean {
-    if (i === 0) return true;
-    var last = diff[i - 1][1];
-    if (last.charCodeAt(last.length - 1) != 10) return false;
-    if (i == 1) return true;
-    last = diff[i - 2][1];
-    return last.charCodeAt(last.length - 1) == 10;
-}
-
-function chunkBoundariesAround(chunks: Chunk[], n: number, nInEdit: boolean): {
-            edit: {before: number, after: number}, orig: {before: number, after: number}} {
-    var beforeE, afterE, beforeO, afterO;
-    for (var i = 0; i < chunks.length; i++) {
-        var chunk = chunks[i];
-        var fromLocal = nInEdit ? chunk.editFrom : chunk.origFrom;
-        var toLocal = nInEdit ? chunk.editTo : chunk.origTo;
-        if (afterE === null) {
-        if (fromLocal > n) { afterE = chunk.editFrom; afterO = chunk.origFrom; }
-        else if (toLocal > n) { afterE = chunk.editTo; afterO = chunk.origTo; }
-        }
-        if (toLocal <= n) { beforeE = chunk.editTo; beforeO = chunk.origTo; }
-        else if (fromLocal <= n) { beforeE = chunk.editFrom; beforeO = chunk.origFrom; }
-    }
-    return {edit: {before: beforeE, after: afterE}, orig: {before: beforeO, after: afterO}};
-}
-
 function collapseSingle(cm: CodeMirror.Editor, from: number, to: number): {mark: CodeMirror.TextMarker, clear: () => void} {
     cm.addLineClass(from, "wrap", "CodeMirror-merge-collapsed-line");
     var widget = document.createElement("span");
@@ -735,25 +694,10 @@ function clear(node: HTMLElement) {
         node.removeChild(node.firstChild);
 }
 
-function attrs(elt: HTMLElement) {
-    for (var i = 1; i < arguments.length; i += 2)
-        elt.setAttribute(arguments[i], arguments[i+1]);
-}
-
 function copyObj(obj: Object, target?: Object) {
     if (!target) target = {};
     for (var prop in obj) if (obj.hasOwnProperty(prop)) target[prop] = obj[prop];
     return target;
-}
-
-function posMin(a: CodeMirror.Position, b: CodeMirror.Position): CodeMirror.Position {
-    return (a.line - b.line || a.ch - b.ch) < 0 ? a : b;
-}
-function posMax(a: CodeMirror.Position, b: CodeMirror.Position): CodeMirror.Position {
-    return (a.line - b.line || a.ch - b.ch) > 0 ? a : b;
-}
-function posEq(a: CodeMirror.Position, b: CodeMirror.Position): boolean {
-    return a.line == b.line && a.ch == b.ch;
 }
 
 function findPrevDiff(chunks: Chunk[], start: number, isOrig: boolean): number {
