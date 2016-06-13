@@ -7,9 +7,14 @@
 
 
 /* Alternative for showing single cell when cells are equal */
-.jp-Cell-unchanged {
+.jp-Diff-unchanged {
     margin-left: 25%;
     width: 50%;
+}
+
+.jp-Metadata-diff {
+    margin-bottom: 20px;
+    border: solid black thin;
 }
 
 .jp-Cell-diff {
@@ -17,78 +22,74 @@
     border: solid black thin;
 }
 
-.jp-Cell-twoway .jp-Cell-base {
+.jp-Diff-twoway .jp-Diff-base {
     float: left;
     width: 47%;
 }
 
-.jp-Cell-twoway .jp-Cell-remote {
+.jp-Diff-twoway .jp-Diff-remote {
     float: right;
     width: 47%;
 }
 
-.jp-Cell-added > div:first-child {
+.jp-Diff-added > div:first-child {
     float: left;
     width: 50%;
 }
 
-.jp-Cell-added > .jp-Cell-base {
+.jp-Diff-added > .jp-Diff-base {
     width: 100%;
     float: right;
 }
 
-.jp-Cell-added .jp-Cellrow-metadata {
+.jp-Diff-added .jp-Cellrow-metadata {
     display: none;
 }
 
-.jp-Cell-unchanged .jp-Cellrow-outputs {
+.jp-Diff-unchanged .jp-Cellrow-outputs {
     display: none;
 }
 
-.jp-Cell-added .jp-Cellrow-outputs {
+.jp-Diff-added .jp-Cellrow-outputs {
     display: none;
 }
 
-.jp-Cell-deleted > div:first-child {
+.jp-Diff-deleted > div:first-child {
     float: right;
     width: 50%;
 }
 
-.jp-Cell-deleted > .jp-Cell-base {
+.jp-Diff-deleted > .jp-Diff-base {
     width: 100%;
     float: left;
 }
 
-.jp-Cell-deleted .jp-Cellrow-metadata {
+.jp-Diff-deleted .jp-Cellrow-metadata {
     display: none;
 }
 
-.jp-Cell-deleted .jp-Cellrow-outputs {
+.jp-Diff-deleted .jp-Cellrow-outputs {
     display: none;
 }
-
-.jp-InputArea-prompt {
-    display: none;
-}
-
 
 .jp-Notebook-diff .CodeMirror-merge-r-chunk { background-color: #ffecec; }
 .jp-Notebook-diff .CodeMirror-merge-r-chunk-start { border-top: 1px solid #f8cbcb; }
 .jp-Notebook-diff .CodeMirror-merge-r-chunk-end { border-bottom: 1px solid #f8cbcb; }
 .jp-Notebook-diff .CodeMirror-merge-r-connect { fill: #ffffe0; stroke: #f8cbcb; stroke-width: 1px; }
-
+.jp-Notebook-diff .CodeMirror-merge-spacer { background-color: #ffecec; }
 
 .jp-Notebook-diff .CodeMirror-merge-pane-rightmost .CodeMirror-merge-r-chunk { background-color: #dbffdb; }
 .jp-Notebook-diff .CodeMirror-merge-pane-rightmost .CodeMirror-merge-r-chunk-start { border-top: 1px solid #a6f3a6; }
 .jp-Notebook-diff .CodeMirror-merge-pane-rightmost .CodeMirror-merge-r-chunk-end { border-bottom: 1px solid #a6f3a6; }
 .jp-Notebook-diff .CodeMirror-merge-pane-rightmost .CodeMirror-merge-r-connect { fill: #ffffe0; stroke: #a6f3a6; stroke-width: 1px; }
+.jp-Notebook-diff .CodeMirror-merge-pane-rightmost .CodeMirror-merge-spacer { background-color: #dbffdb; }
 
 
-.jp-Cell-deleted .CodeMirror {
+.jp-Diff-deleted .CodeMirror {
     background-color: #ffecec;
 }
 
-.jp-Cell-added .CodeMirror {
+.jp-Diff-added .CodeMirror {
     background-color: #dbffdb;
 }
 

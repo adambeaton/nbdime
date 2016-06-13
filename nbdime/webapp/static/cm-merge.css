@@ -8,7 +8,12 @@
   height: auto;
 }
 
-.CodeMirror-merge-1pane .CodeMirror-merge-pane { width: 94%; }
+.CodeMirror-scroll {
+  max-height: calc(100vh - 4em);
+}
+
+.CodeMirror-merge-pane-unchanged { width: 100%; }
+.CodeMirror-merge-pane-deleted, .CodeMirror-merge-pane-added { width: 94%; }
 .CodeMirror-merge-1pane .CodeMirror-merge-gap { width: 6%; }
 .CodeMirror-merge-2pane .CodeMirror-merge-pane { width: 47%; }
 .CodeMirror-merge-2pane .CodeMirror-merge-gap { width: 6%; }
@@ -109,3 +114,7 @@
   border-radius: 4px;
 }
 .CodeMirror-merge-collapsed-line .CodeMirror-gutter-elt { display: none; }
+
+.CodeMirror-merge-spacer {
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,.5) 5px, rgba(255,255,255,.5) 10px);
+}

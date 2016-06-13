@@ -60,18 +60,19 @@ import {
 
 const NBDIFF_CLASS = 'jp-Notebook-diff';
 
+const ROOT_METADATA_CLASS = 'jp-Metadata-diff';
 const CELLDIFF_CLASS = 'jp-Cell-diff';
 
 const SOURCE_ROW_CLASS = 'jp-Cellrow-source';
 const METADATA_ROW_CLASS = 'jp-Cellrow-metadata';
 const OUTPUTS_ROW_CLASS = 'jp-Cellrow-outputs';
 
-const CELLTWOWAY_CLASS = 'jp-Cell-twoway';
-const CELLADDED_CLASS = 'jp-Cell-added';
-const CELLDELETED_CLASS = 'jp-Cell-deleted';
-const CELLUNCHANGED_CLASS = 'jp-Cell-unchanged';
+const TWOWAY_DIFF_CLASS = 'jp-Diff-twoway';
+const ADDED_DIFF_CLASS = 'jp-Diff-added';
+const DELETED_DIFF_CLASS = 'jp-Diff-deleted';
+const UNCHANGED_DIFF_CLASS = 'jp-Diff-unchanged';
 
-const DIFF_CLASSES = ["jp-Cell-base", "jp-Cell-remote"];
+const DIFF_CLASSES = ["jp-Diff-base", "jp-Diff-remote"];
 
 const ADDED_CHARS = "nbdime-source-added";
 const DELETED_CHARS = "nbdime-source-removed";
@@ -121,6 +122,11 @@ const safeOutputs = ['text/plain', 'text/latex', 'image/png', 'image/jpeg',
  */
 const sanitizable = ['text/svg', 'text/html'];
 
+/**
+ * A list of MIME types that can be shown as string diff.
+ */
+const stringDiffMimeTypes = ['text/html', 'text/plain'];
+
 
 /**
  * CollapsiblePanel
@@ -162,13 +168,18 @@ class CollapsibleWidget extends Widget {
     
     toggleCollapsed(): void {
         let slider = this.slider;
+        let button = this.button;
         if (this.collapsed) {
             slider.classList.remove(COLLAPSIBLE_CLOSED);
             slider.classList.add(COLLAPSIBLE_OPEN);
+            button.classList.remove(COLLAPISBLE_HEADER_ICON_CLOSED);
+            button.classList.add(COLLAPISBLE_HEADER_ICON_OPEN);
             
         } else {
             slider.classList.remove(COLLAPSIBLE_OPEN);
             slider.classList.add(COLLAPSIBLE_CLOSED);
+            button.classList.remove(COLLAPISBLE_HEADER_ICON_OPEN);
+            button.classList.add(COLLAPISBLE_HEADER_ICON_CLOSED);
         }
     }
     
@@ -220,11 +231,26 @@ class NotebookDiffWidget extends Widget {
  * MetadataWidget for changes to Notebook-level metadata
  */
 export
-class MetadataDiffWidget extends Widget {
+class MetadataDiffWidget extends Panel {
     constructor(model: IDiffModel) {
         super();
         this._model = model;
-        this.layout = new PanelLayout();
+        console.assert(!model.added && !model.deleted);
+        this.addClass(ROOT_METADATA_CLASS);
+        this.init();
+    }
+
+    init() {
+        let model = this._model;
+        if (!model.unchanged) {
+            this.addClass(TWOWAY_DIFF_CLASS);
+            console.assert(model instanceof StringDiffModel)
+            let view: Widget = new NbdimeMergeView(model as StringDiffModel, DIFF_CLASSES);
+            if (model.collapsible) {
+                view = new CollapsibleWidget(view, model.collapsibleHeader, model.startCollapsed);
+            }
+            this.addChild(view);
+        }
     }
 
     private _model: IDiffModel;
@@ -257,38 +283,41 @@ class CellDiffWidget extends Panel {
             let widget = new Widget();
             widget.node.textContent = "Cell added";
             this.addChild(widget);
-            this.addClass(CELLADDED_CLASS);
+            this.addClass(ADDED_DIFF_CLASS);
             CURR_DIFF_CLASSES = DIFF_CLASSES.slice(0, 1);
         } else if (model.deleted) {
             let widget = new Widget();
             widget.node.textContent = "Cell deleted";
             this.addChild(widget);
-            this.addClass(CELLDELETED_CLASS);
+            this.addClass(DELETED_DIFF_CLASS);
             CURR_DIFF_CLASSES = DIFF_CLASSES.slice(1, 2);
         } else if (model.unchanged) {
-            this.addClass(CELLUNCHANGED_CLASS);
+            this.addClass(UNCHANGED_DIFF_CLASS);
         } else {
-            this.addClass(CELLTWOWAY_CLASS);
+            this.addClass(TWOWAY_DIFF_CLASS);
         }
         
         // Add inputs and outputs, on a row-by-row basis
-        let sourceView = this.createView(model.source, CURR_DIFF_CLASSES);
+        let sourceView = this.createView(model.source, model, CURR_DIFF_CLASSES);
         sourceView.addClass(SOURCE_ROW_CLASS);
         this.addChild(sourceView);
         
         if (model.metadata && !model.metadata.unchanged) {
-            let metadataView = this.createView(model.metadata, CURR_DIFF_CLASSES);
+            let metadataView = this.createView(model.metadata, model, CURR_DIFF_CLASSES);
             metadataView.addClass(METADATA_ROW_CLASS);
             this.addChild(metadataView);
         }
         if (model.outputs && model.outputs.length > 0) {
             let container = new Panel();
+            let changed = false;
             for (let o of model.outputs) {
-                let outputsWidget = this.createView(o, CURR_DIFF_CLASSES);
+                let outputsWidget = this.createView(o, model, CURR_DIFF_CLASSES);
                 container.addChild(outputsWidget);
+                changed = changed || !o.unchanged || o.added || o.deleted;
             }
-            let collapser = new CollapsibleWidget(container, "Output changed");
-            collapser.addClass(OUTPUTS_ROW_CLASS); 
+            let header = changed ? "Outputs changed" : "Outputs unchanged"
+            let collapser = new CollapsibleWidget(container, header, !changed);
+            collapser.addClass(OUTPUTS_ROW_CLASS);
             this.addChild(collapser);
         }
     }
@@ -296,7 +325,7 @@ class CellDiffWidget extends Panel {
     /**
      * Create a new sub-view.
      */
-    createView(model: IDiffModel, editorClasses: string[]): Widget {
+    createView(model: IDiffModel, parent: ICellDiffModel, editorClasses: string[]): Widget {
         let view: Widget = null;
         if (model instanceof StringDiffModel) {
             view = new NbdimeMergeView(model as IStringDiffModel, editorClasses);
@@ -306,12 +335,20 @@ class CellDiffWidget extends Panel {
             // 2) Renderable types: Side-by-side comparison.
             // 3) Unknown types: Stringified JSON diff.
             let tmodel = model as OutputDiffModel;
-            let key = tmodel.innerStringKey();
-            if (key){
-                model = tmodel.stringify(key);
-                view = new NbdimeMergeView(model as IStringDiffModel, editorClasses);
-            } else {
-                view = new RenderableView(tmodel, editorClasses, this._rendermime);
+            let renderable = RenderableView.canRenderUntrusted(tmodel);
+            for (let mt of this._rendermime.order) {
+                let key = tmodel.hasMimeType(mt);
+                if (key) {
+                    if (!renderable || stringDiffMimeTypes.indexOf(mt) !== -1 ) {
+                        view = new NbdimeMergeView(tmodel.stringify(key), editorClasses);
+                    } else if (renderable) {
+                        view = new RenderableView(tmodel, editorClasses, this._rendermime);
+                    }
+                    break;
+                }
+            }
+            if (!view) {
+                view = new NbdimeMergeView(tmodel.stringify(), editorClasses);
             }
         } else {
             throw "Unrecognized model type."
@@ -319,7 +356,20 @@ class CellDiffWidget extends Panel {
         if (model.collapsible) {
             view = new CollapsibleWidget(view, model.collapsibleHeader, model.startCollapsed);
         }
-        return view;
+        let container = new Panel();
+        if (model.added && !parent.added) {
+            let addSpacer = new Widget()
+            addSpacer.node.textContent = "Output added";
+            container.addChild(addSpacer);
+            container.addClass(ADDED_DIFF_CLASS);
+        } else if (model.deleted && !parent.deleted) {
+            let delSpacer = new Widget()
+            delSpacer.node.textContent = "Output deleted";
+            container.addChild(delSpacer);
+            container.addClass(DELETED_DIFF_CLASS);
+        }
+        container.addChild(view);
+        return container;
     }
     
     /**
@@ -377,25 +427,62 @@ class NbdimeMergeView extends Widget {
  * RenderableView
  */
 class RenderableView extends Widget {
-    constructor(remote: IOutputDiffModel, editorClass: string[],
+    constructor(model: IOutputDiffModel, editorClass: string[],
                 rendermime: RenderMime<Widget>) {
         super();
         this._rendermime = rendermime;
-        let bdata = remote.base as IOutput;
-        let rdata = remote.remote as IOutput;
+        let bdata = model.base as IOutput;
+        let rdata = model.remote as IOutput;
         this.layout = new PanelLayout();
 
         let ci = 0;
         if (bdata){
-            let widget = this.createOutput(bdata, true);
+            let widget = this.createOutput(bdata, false);
             (this.layout as PanelLayout).addChild(widget);
             widget.addClass(editorClass[ci++]);
         }
         if (rdata && rdata !== bdata) {
-            let widget = this.createOutput(rdata, true);
+            let widget = this.createOutput(rdata, false);
             (this.layout as PanelLayout).addChild(widget);
             widget.addClass(editorClass[ci++]);
         }
+    }
+
+    static sanitizable(bundle: MimeBundle) {
+        let keys = Object.keys(bundle);
+        for (let key of keys) {
+            if (safeOutputs.indexOf(key) !== -1) {
+                continue;
+            } else if (sanitizable.indexOf(key) !== -1) {
+                let out = bundle[key];
+                if (typeof out === 'string') {
+                    continue;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static canRenderUntrusted(model: IOutputDiffModel): boolean {
+        let toTest: IOutput[] = [];
+        if (model.base) toTest.push(model.base);
+        if (model.remote && model.remote !== model.base) toTest.push(model.remote);
+        for (let o of toTest) {
+            if (['execute_result', 'display_data'].indexOf(o.output_type) !== -1) {
+                let bundle = (o as any).data as MimeBundle;
+                if (!this.sanitizable(bundle)){
+                    return false;
+                }
+            } else if (['stream', 'error'].indexOf(o.output_type) !== -1) {
+                // Unknown output type
+                return false;
+            }
+        }
+        return true;
     }
 
     protected createOutput(output: IOutput, trusted: boolean): Widget {
@@ -466,7 +553,7 @@ class RenderableView extends Widget {
                 child.addClass(RESULT_CLASS);
                 widget.addChild(child);
             } else {
-                console.log('Did not find renderer for output mimebundle.');
+                console.log('Did not find renderer for output mimebundle:');
                 console.log(bundle);
             }
         }

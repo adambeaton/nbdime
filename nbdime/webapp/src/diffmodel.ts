@@ -281,19 +281,14 @@ export class OutputDiffModel implements IOutputDiffModel {
         return this.remote === null;
     }
 
-    innerStringKey() : string {
+    hasMimeType(mimetype: string): string {
         let t = this.base ? this.base.output_type : this.remote.output_type;
-        let base: string = null;
-        let remote: string = null;
-        let diff: IDiffEntry[] = null;
-        if (t === 'stream') {
+        if (t === 'stream' && mimetype == "application/vnd.jupyter.console-text") {
             return 'text';
-        } else if (t === 'execute_result') {
+        } else if (t === 'execute_result' || t === 'display_data') {
             let data = this.base ? (this.base as IExecuteResult).data : (this.remote as IExecuteResult).data;
-            for (let mt of stringDiffMimeTypes) {
-                if (mt in data) {
-                    return 'data.' + mt;
-                }
+            if (mimetype in data) {
+                return 'data.' + mimetype;
             }
         }
         return null;
