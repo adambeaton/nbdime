@@ -143,7 +143,12 @@ export class StringDiffModel implements IStringDiffModel {
                 if (isAddition) {
                     startOrig = range.from.line;
                     startEdit = startOrig + editOffset;
-                    current = new Chunk(startEdit, startEdit + linediff + 1, startOrig, startOrig + 1);
+                    current = new Chunk(
+                        startEdit + startOffset,
+                        startEdit + endOffset,
+                        startOrig + startOffset,
+                        startOrig + endOffset + linediff
+                    );
                 } else {
                     startEdit = range.from.line;
                     startOrig = startEdit - editOffset;
