@@ -115,6 +115,17 @@ export function patchStringified(base: (string | Array<any> | any), diff: IDiffE
     }
 }
 
+function entriesAfter(remainingKeys: string[], ops: { [key: string]: IDiffEntry},
+                      isAddition?: boolean): boolean {
+    let cop = isAddition !== false ? DiffOp.REMOVE : DiffOp.ADD;
+    for (let key of remainingKeys) {
+        if (key in ops && ops[key].op !== cop) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number) : PatchResult {
     if (level === undefined) {
         var level = 0;
