@@ -128,7 +128,7 @@ function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number)
     var baseIndex = 0;
     
     // Short-circuit if diff is empty
-    if (diff === null) {
+    if (diff === null || diff === undefined) {
         return {remote: stringify(base, level, true), additions: additions, deletions: deletions};
     }
     
@@ -141,7 +141,11 @@ function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number)
     }
     var all_keys = getAllKeys(base, op_keys);
     
-    for (var key of all_keys) {
+    for (;;) {
+        let key = all_keys.shift();
+        if (key === undefined){
+            break;
+        }
         let keyString = makeKeyString(key, level + 1);
         if (valueIn(key, op_keys)) {
             // Entry has a change
@@ -151,12 +155,20 @@ function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number)
             if (valueIn(op, [DiffOp.ADD, DiffOp.REPLACE, DiffOp.REMOVE])) {
                 if (valueIn(op, [DiffOp.ADD, DiffOp.REPLACE])) {
                     let valr = stringify((e as IDiffAdd).value, level + 1, false) + postfix;
-                    additions.push(new DiffRangeRaw(remote.length, keyString.length + valr.length));
+                    let length = keyString.length + valr.length;
+                    if (!entriesAfter(all_keys, ops, true)) {
+                        length -= postfix.length - 1; // Newline will still be included
+                    }
+                    additions.push(new DiffRangeRaw(remote.length, length));
                     remote += keyString + valr;
                 }
                 if (valueIn(op, [DiffOp.REMOVE, DiffOp.REPLACE])) {
                     let valb = stringify(map[key], level + 1, false) + postfix;
-                    deletions.push(new DiffRangeRaw(baseIndex, keyString.length + valb.length));
+                    let length = keyString.length + valb.length;
+                    if (!entriesAfter(all_keys, ops, false)) {
+                        length -= postfix.length - 1; // Newline will still be included
+                    }
+                    deletions.push(new DiffRangeRaw(baseIndex, length));
                     baseIndex += valb.length;
                 }
             } else if (op == DiffOp.PATCH) {
@@ -200,7 +212,7 @@ function patchStringifiedList(base: Array<any>, diff: IDiffEntry[], level: numbe
     let postfix = ",\n";
     
     // Short-circuit if diff is empty
-    if (diff === null) {
+    if (diff === null || diff === undefined) {
         return {remote: stringify(base, level), additions: additions, deletions: deletions};
     }
     // Index into obj, the next item to take unless diff says otherwise
@@ -268,6 +280,11 @@ function patchString(base: string, diff: IDiffEntry[], level: number) : PatchRes
     var additions: DiffRangeRaw[] = [];
     var deletions: DiffRangeRaw[] = [];
     var baseIndex= 0;
+
+    // Short-circuit if diff is empty
+    if (diff === null || diff === undefined) {
+        return {remote: stringify(base, level), additions: additions, deletions: deletions};
+    }
     // Index into obj, the next item to take unless diff says otherwise
     var take = 0;
     var skip = 0;
