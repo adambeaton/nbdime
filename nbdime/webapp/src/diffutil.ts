@@ -2,6 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 'use strict';
 
+import * as CodeMirror from 'codemirror';
+
 export const JSON_INDENT = "    ";
 
 export function repeat_string(str: string, count: number): string {
@@ -37,8 +39,67 @@ export class DiffRangeRaw {
 }
 
 export class DiffRangePos {
-    constructor(public from: CodeMirror.Position, public to: CodeMirror.Position) {
+    constructor(public from: CodeMirror.Position, public to: CodeMirror.Position,
+            chunkStartLine?: boolean, endsOnNewline?: boolean) {
+        this.chunkStartLine = chunkStartLine === true;
+        this.endsOnNewline = endsOnNewline === true;
     }
+
+    chunkStartLine: boolean;
+    endsOnNewline: boolean;
+}
+
+
+function findLineNumber(nlPos: number[], index: number): number {
+    if (nlPos.length === 0) return 0;
+    var lineNo: number = null;
+    nlPos.some(function(el, i) {
+        if (el >= index) {
+            lineNo = i;
+            return true;
+        }
+        return false;
+    });
+    if (lineNo === null) {
+        return nlPos.length;
+    }
+    return lineNo;
+}
+
+export function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
+    // Find all newline's indices in text
+    let adIdx: number[] = [];
+    let i = -1;
+    while (-1 !== (i = text.indexOf("\n", i + 1))) {
+        adIdx.push(i);
+    }
+    let result: DiffRangePos[] = [];
+    // Find line numbers from raw index
+    for (let r of raws) {
+        let line = findLineNumber(adIdx, r.from);
+        let lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0; 
+        let from = CodeMirror.Pos(line, r.from - lineStartIdx);
+        line = findLineNumber(adIdx, r.to - 1);  // `to` is non-inclusive, so substract 1
+        lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0;
+        let to = CodeMirror.Pos(line, r.to - lineStartIdx);
+
+        let startsOnNewLine = adIdx.indexOf(r.from) !== -1;
+        let endsOnNewline = adIdx.indexOf(r.to - 1) !== -1;  // `to` is non-inclusive, so substract 1
+        let firstLineNew = from.ch === 0 && (
+            from.line !== to.line || endsOnNewline || r.to === text.length);
+        let chunkFirstLine = (
+            firstLineNew ||
+            !startsOnNewLine ||
+            (
+                // Neither preceding nor following character is a newline
+                adIdx.indexOf(r.from - 1) === -1 &&
+                adIdx.indexOf(r.to) === -1
+            )
+        )
+        let pos = new DiffRangePos(from, to, chunkFirstLine, endsOnNewline);
+        result.push(pos);
+    }
+    return result;
 }
 
 export interface IDiffEntryBase {

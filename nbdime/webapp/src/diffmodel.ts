@@ -3,11 +3,13 @@
 'use strict';
 
 import {
-    INotebookContent, ICell, ICodeCell, INotebookMetadata, IOutput, IStream, IExecuteResult, IRawCell
+    INotebookContent, ICell, ICodeCell, INotebookMetadata, IOutput, IStream, 
+    IExecuteResult, IRawCell
 } from 'jupyter-js-notebook/lib/notebook/nbformat';
 
 import {
-    get_diff_key, DiffRangeRaw, DiffRangePos, IDiffEntry, IDiffAddRange, IDiffRemoveRange, IDiffPatch
+    get_diff_key, DiffRangeRaw, DiffRangePos, IDiffEntry, IDiffAddRange, 
+    IDiffRemoveRange, IDiffPatch, raw2Pos
 } from './diffutil';
     
 import {
@@ -16,16 +18,11 @@ import {
 
 import * as CodeMirror from 'codemirror';
 
-/**
- * A list of MIME types that will be shown as string diff.
- */
-const stringDiffMimeTypes = ['text/plain'];
-
 
 // DIFF MODELS:
 
 export interface IDiffModel {
-    unchanged: boolean;
+    unchanged: boolean; 
     added: boolean;
     deleted: boolean;
     
@@ -113,6 +110,35 @@ export class StringDiffModel implements IStringDiffModel {
                 range = this.deletions[id++];
             }
             let linediff = range.to.line - range.from.line;
+            if (range.endsOnNewline) {
+                linediff += 1;
+            }
+            let firstLineNew = range.from.ch === 0 && linediff > 0;
+
+            let startOffset = range.chunkStartLine ? 0 : 1;
+            let endOffset = (
+                range.chunkStartLine && range.endsOnNewline && firstLineNew) ?
+                0 : 1;
+
+            if (current) {
+                if (isAddition) {
+                    if (current.inOrig(range.from.line)) {
+                        current.origTo = Math.max(current.origTo, range.to.line + 1);
+                    } else {
+                        // No overlap with chunk, start new one
+                        chunks.push(current);
+                        current = null;
+                    }
+                } else {
+                    if (current.inEdit(range.from.line)) {
+                        current.editTo = Math.max(current.editTo, range.to.line + 1);
+                    } else {
+                        // No overlap with chunk, start new one
+                        chunks.push(current);
+                        current = null;
+                    }
+                }
+            }
             if (!current) {
                 if (isAddition) {
                     startOrig = range.from.line;
@@ -121,24 +147,12 @@ export class StringDiffModel implements IStringDiffModel {
                 } else {
                     startEdit = range.from.line;
                     startOrig = startEdit - editOffset;
-                    current = new Chunk(startEdit, startEdit + 1, startOrig, startOrig + linediff + 1);
-                }
-            }
-            if (isAddition) {
-                if (current.inOrig(range.from.line)) {
-                    current.origTo += linediff;
-                } else {
-                    // No overlap with chunk, start new one
-                    chunks.push(current);
-                    current = null;
-                }
-            } else {
-                if (current.inEdit(range.from.line)) {
-                    current.editTo += linediff;
-                } else {
-                    // No overlap with chunk, start new one
-                    chunks.push(current);
-                    current = null;
+                    current = new Chunk(
+                        startEdit + startOffset,
+                        startEdit + endOffset + linediff,
+                        startOrig + startOffset,
+                        startOrig + endOffset
+                    );
                 }
             }
             editOffset += isAddition ? -linediff : linediff;
@@ -168,6 +182,24 @@ export class StringDiffModel implements IStringDiffModel {
     additions: DiffRangePos[];
     deletions: DiffRangePos[];
 }
+
+// MODEL/CHUNKING FOR DIFFVIEW
+
+export class Chunk {
+    constructor(
+          public editFrom: number,
+          public editTo: number,
+          public origFrom: number,
+          public origTo: number) {}
+    
+    inEdit(line: number) {
+        return line >= this.editFrom && line <= this.editTo;
+    }
+    
+    inOrig(line: number) {
+        return line >= this.origFrom && line <= this.origTo;
+    }
+};
 
 export class PatchDiffModel extends StringDiffModel {
     constructor(base: any, diff?: IDiffEntry[]) {
@@ -305,68 +337,6 @@ export class OutputDiffModel implements IOutputDiffModel {
 }
 
 
-
-// MODEL/CHUNKING FOR DIFFVIEW
-
-export class Chunk {
-    constructor(
-          public editFrom: number,
-          public editTo: number,
-          public origFrom: number,
-          public origTo: number) {}
-    
-    inEdit(line: number) {
-        return line >= this.editFrom && line <= this.editTo;
-    }
-    
-    inOrig(line: number) {
-        return line >= this.origFrom && line <= this.origTo;
-    }
-};
-
-
-function findLineNumber(nlPos: number[], index: number): number {
-    if (nlPos.length === 0) return 0;
-    var lineNo: number = null;
-    nlPos.some(function(el, i) {
-        if (el > index) {
-            lineNo = i;
-            return true;
-        }
-        return false;
-    });
-    if (lineNo === null) {
-        return nlPos.length;
-    }
-    return lineNo;
-}
-
-function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
-    // Find all newline's indices in text
-    let adIdx: number[] = [];
-    let i = -1;
-    while (-1 !== (i = text.indexOf("\n", i + 1))) {
-        adIdx.push(i);
-    }
-    let result: DiffRangePos[] = [];
-    // Find line numbers from raw index
-    for (let r of raws) {
-        let line = findLineNumber(adIdx, r.from);
-        let lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0; 
-        let from = CodeMirror.Pos(line, r.from - lineStartIdx);
-        line = findLineNumber(adIdx, r.to);
-        lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0; 
-        let to = CodeMirror.Pos(line, r.to - lineStartIdx);
-        result.push(new DiffRangePos(from, to));
-    }
-    return result;
-}
-
-
-
-
-
-// 
 
 export interface ICellDiffModel {
     source: IDiffModel;
