@@ -159,6 +159,7 @@ export class StringDiffModel implements IStringDiffModel {
                         startOrig + endOffset
                     );
                 }
+                
             }
             editOffset += isAddition ? -linediff : linediff;
         }
