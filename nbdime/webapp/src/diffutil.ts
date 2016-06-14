@@ -130,7 +130,7 @@ export interface IDiffEntryBase {
 }
 
 export interface IDiffAddRange extends IDiffEntryBase {
-    valuelist: string | Array<any>;
+    valuelist: string | any[];
 }
 
 export interface IDiffAdd extends IDiffEntryBase {

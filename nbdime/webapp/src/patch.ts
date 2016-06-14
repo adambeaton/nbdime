@@ -223,23 +223,38 @@ function patchStringifiedList(base: Array<any>, diff: IDiffEntry[], level: numbe
         var index = e.key as number;
 
         // Take values from obj not mentioned in diff, up to not including index
-        if (index > take) {
-            let unchanged = stringify(base.slice(take, index), level + 1) + postfix;;
-            remote = remote.concat(unchanged);
+        for (;index > take; take++) {
+            let unchanged = stringify(base[take], level + 1) + postfix;
+            remote += unchanged;
             baseIndex += unchanged.length;
         }
 
         if (op == DiffOp.SEQINSERT) {
             // Extend with new values directly
-            let val = stringify((e as IDiffAddRange).valuelist, level + 1) + postfix;
-            additions.push(new DiffRangeRaw(remote.length, val.length));
+            let val = "";
+            for (let v of (e as IDiffAddRange).valuelist) {
+                val += stringify(v, level + 1) + postfix;
+            }
+            let difflen = val.length;
+            if (index === base.length) {
+                difflen -= 1; // No comma if at end
+            }
+            additions.push(new DiffRangeRaw(remote.length, difflen));
             remote += val;
             skip = 0;
         }
         else if (op == DiffOp.SEQDELETE) {
             // Delete a number of values by skipping
-            let val = stringify(base[index], level + 1) + postfix;
-            deletions.push(new DiffRangeRaw(baseIndex, val.length));
+            let val = "";
+            let len = (e as IDiffRemoveRange).length;
+            for (let i = 0; i < len; i++) {
+                val += stringify(base[i], level + 1) + postfix;
+            }
+            let difflen = val.length;
+            if (len + index === base.length) {
+                difflen -= 1; // No comma if at end
+            }
+            deletions.push(new DiffRangeRaw(baseIndex, difflen));
             baseIndex += val.length;
             skip = (e as IDiffRemoveRange).length;
         }
@@ -262,8 +277,8 @@ function patchStringifiedList(base: Array<any>, diff: IDiffEntry[], level: numbe
     }
 
     // Take unchanged values at end
-    if (base.length > take) {
-        remote += stringify(base.slice(take, base.length), level + 1) + postfix;
+    for (;base.length > take; take++) {
+        remote += stringify(base[take], level + 1) + postfix;
     }
     
     // Stringify correctly

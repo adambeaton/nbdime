@@ -2,3 +2,4 @@
 // Distributed under the terms of the Modified BSD License.
 
 import './diffing/chunking.spec';
+import './diffing/patching.spec';
