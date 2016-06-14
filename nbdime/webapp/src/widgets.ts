@@ -11,28 +11,12 @@ import {
 } from 'jupyter-js-ui/lib/codemirror';
 
 import {
-    CodeMirrorWidget
-} from 'jupyter-js-ui/lib/codemirror/widget';
-
-import {
-    Widget, ResizeMessage
+    Widget
 } from 'phosphor-widget';
 
 import {
     Panel, PanelLayout
 } from 'phosphor-panel';
-
-import {
-  Message
-} from 'phosphor-messaging';
-
-/*import {
-    GridPanel
-} from 'phosphor-gridpanel';*/
-
-import * as CodeMirror from 'codemirror';
-
-import 'codemirror/mode/meta';
 
 import 'codemirror/lib/codemirror.css';
 
@@ -369,6 +353,8 @@ class CellDiffWidget extends Panel {
             container.addClass(DELETED_DIFF_CLASS);
         } else if (model.unchanged && !parent.unchanged) {
             container.addClass(UNCHANGED_DIFF_CLASS);
+        } else {
+            container.addClass(TWOWAY_DIFF_CLASS);
         }
         container.addChild(view);
         return container;
