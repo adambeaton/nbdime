@@ -22,16 +22,6 @@
     border: solid black thin;
 }
 
-.jp-Diff-twoway .jp-Diff-base {
-    float: left;
-    width: 47%;
-}
-
-.jp-Diff-twoway .jp-Diff-remote {
-    float: right;
-    width: 47%;
-}
-
 .jp-Diff-added > div:first-child {
     float: left;
     width: 50%;

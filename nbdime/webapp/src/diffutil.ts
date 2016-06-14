@@ -38,7 +38,17 @@ export class DiffRangeRaw {
     to: number;
 }
 
+/**
+ * Class representing a string (diff) range in the format of CodeMirror.Positions.
+ * 
+ * The class also has fields to ease chunking of diffs without reparsing the
+ * text.
+ */
 export class DiffRangePos {
+    /**
+     * Create a diff range. The `ch` field of the `to` position is defined as
+     * non-inclusive, i.e., it follows the syntax of String.slice().
+     */
     constructor(public from: CodeMirror.Position, public to: CodeMirror.Position,
             chunkStartLine?: boolean, endsOnNewline?: boolean) {
         this.chunkStartLine = chunkStartLine === true;
@@ -50,6 +60,10 @@ export class DiffRangePos {
 }
 
 
+/**
+ * Utility function to find the line number of a given string index,
+ * given the positions of all newlines.
+ */
 function findLineNumber(nlPos: number[], index: number): number {
     if (nlPos.length === 0) return 0;
     var lineNo: number = null;
@@ -66,6 +80,10 @@ function findLineNumber(nlPos: number[], index: number): number {
     return lineNo;
 }
 
+/**
+ * Function to convert an array of DiffRangeRaw to DiffRangePos. The 
+ * `text` parameter is the text in which the ranges exist.
+ */
 export function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
     // Find all newline's indices in text
     let adIdx: number[] = [];
@@ -76,15 +94,19 @@ export function raw2Pos(raws: DiffRangeRaw[], text: string): DiffRangePos[] {
     let result: DiffRangePos[] = [];
     // Find line numbers from raw index
     for (let r of raws) {
+        // First `from` position:
         let line = findLineNumber(adIdx, r.from);
         let lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0; 
         let from = CodeMirror.Pos(line, r.from - lineStartIdx);
-        line = findLineNumber(adIdx, r.to - 1);  // `to` is non-inclusive, so substract 1
+
+        // Then `to` position:
+        line = findLineNumber(adIdx, r.to - 1);  // `to` is non-inclusive
         lineStartIdx = line > 0 ? adIdx[line-1] + 1 : 0;
         let to = CodeMirror.Pos(line, r.to - lineStartIdx);
 
+        // Finally chunking hints:
         let startsOnNewLine = adIdx.indexOf(r.from) !== -1;
-        let endsOnNewline = adIdx.indexOf(r.to - 1) !== -1;  // `to` is non-inclusive, so substract 1
+        let endsOnNewline = adIdx.indexOf(r.to - 1) !== -1;  // non-inclusive
         let firstLineNew = from.ch === 0 && (
             from.line !== to.line || endsOnNewline || r.to === text.length);
         let chunkFirstLine = (
