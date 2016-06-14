@@ -33,10 +33,6 @@ import {
 } from 'jupyter-js-notebook/lib/notebook/nbformat';
 
 import {
-    OutputAreaWidget, IOutputAreaModel
-} from 'jupyter-js-notebook/lib/output-area';
-
-import {
     ICellDiffModel, INotebookDiffModel, IDiffModel,
     IStringDiffModel, StringDiffModel, IOutputDiffModel, OutputDiffModel
 } from './diffmodel';
@@ -57,22 +53,6 @@ const DELETED_DIFF_CLASS = 'jp-Diff-deleted';
 const UNCHANGED_DIFF_CLASS = 'jp-Diff-unchanged';
 
 const DIFF_CLASSES = ["jp-Diff-base", "jp-Diff-remote"];
-
-const ADDED_CHARS = "nbdime-source-added";
-const DELETED_CHARS = "nbdime-source-removed";
-const ADDED_LINES = "nbdime-source-line-addition";
-const DELETED_LINES = "nbdime-source-line-deletion";
-
-/**
- * The class name added to Editor widget instances.
- */
-const EDITOR_CLASS = 'jp-Editor';
-
-/**
- * The class name added to CodeMirrorWidget instances.
- */
-const CODEMIRROR_CLASS = 'jp-CodeMirror';
-
 
 const COLLAPISBLE_HEADER = 'jp-Collapsible-header';
 const COLLAPISBLE_HEADER_ICON = 'jp-Collapsible-header-icon';

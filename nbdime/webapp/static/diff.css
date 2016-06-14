@@ -89,13 +89,6 @@
     background-color: #dbffdb;
 }
 
-.nbdime-source-line-addition {
-    background-color: #dbffdb;
-}
-.nbdime-source-line-deletion {
-    background-color: #ffecec;
-}
-
 #nbdime-header {
     margin: auto;
     width: 90%;
