@@ -367,6 +367,8 @@ class CellDiffWidget extends Panel {
             delSpacer.node.textContent = "Output deleted";
             container.addChild(delSpacer);
             container.addClass(DELETED_DIFF_CLASS);
+        } else if (model.unchanged && !parent.unchanged) {
+            container.addClass(UNCHANGED_DIFF_CLASS);
         }
         container.addChild(view);
         return container;

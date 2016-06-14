@@ -40,6 +40,12 @@
     display: none;
 }
 
+.jp-Diff-unchanged .jp-OutputArea-result > * {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .jp-Diff-added .jp-Cellrow-outputs {
     display: none;
 }
