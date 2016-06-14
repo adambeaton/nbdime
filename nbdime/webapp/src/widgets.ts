@@ -33,8 +33,8 @@ import {
 } from 'jupyter-js-notebook/lib/notebook/nbformat';
 
 import {
-    ICellDiffModel, INotebookDiffModel, IDiffModel,
-    IStringDiffModel, StringDiffModel, IOutputDiffModel, OutputDiffModel
+    ICellDiffModel, NotebookDiffModel, IDiffModel,
+    IStringDiffModel, StringDiffModel, OutputDiffModel
 } from './diffmodel';
 
 
@@ -162,7 +162,7 @@ class CollapsibleWidget extends Widget {
  */
 export
 class NotebookDiffWidget extends Widget {
-    constructor(model: INotebookDiffModel, rendermime: RenderMime<Widget>) {
+    constructor(model: NotebookDiffModel, rendermime: RenderMime<Widget>) {
         super();
         this._model = model;
         this._rendermime = rendermime;
@@ -182,11 +182,11 @@ class NotebookDiffWidget extends Widget {
      * #### Notes
      * This is a read-only property.
      */
-    get model(): INotebookDiffModel {
+    get model(): NotebookDiffModel {
         return this._model;
     }
     
-    private _model: INotebookDiffModel;
+    private _model: NotebookDiffModel;
     private _rendermime: RenderMime<Widget> = null;
 }
 
@@ -395,7 +395,7 @@ class NbdimeMergeView extends Widget {
  * RenderableView
  */
 class RenderableView extends Widget {
-    constructor(model: IOutputDiffModel, editorClass: string[],
+    constructor(model: OutputDiffModel, editorClass: string[],
                 rendermime: RenderMime<Widget>) {
         super();
         this._rendermime = rendermime;
@@ -435,7 +435,7 @@ class RenderableView extends Widget {
         return true;
     }
 
-    static canRenderUntrusted(model: IOutputDiffModel): boolean {
+    static canRenderUntrusted(model: OutputDiffModel): boolean {
         let toTest: IOutput[] = [];
         if (model.base) toTest.push(model.base);
         if (model.remote && model.remote !== model.base) toTest.push(model.remote);

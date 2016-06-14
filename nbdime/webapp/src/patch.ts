@@ -42,7 +42,7 @@ function patchSequence(base: Array<any>, diff: IDiffEntry[]): Array<any> {
 
         // Take values from base not mentioned in diff, up to not including index
         for (let value of base.slice(take, index)) {
-            patched.push(deepCopy(value));
+            patched.push(_deepCopy(value));
         }
 
         if (op === DiffOp.SEQINSERT) {
@@ -67,7 +67,7 @@ function patchSequence(base: Array<any>, diff: IDiffEntry[]): Array<any> {
 
     // Take values at end not mentioned in diff
     for (let value of base.slice(take)) {
-        patched.push(deepCopy(value));
+        patched.push(_deepCopy(value));
     }
     return patched;
 }
@@ -97,7 +97,7 @@ function patchObject(base: Object, diff: IDiffEntry[]) : Object {
 
     // Take items not mentioned in diff
     for (let key of keysToCopy) {
-        patched[key] = deepCopy(base[key]);
+        patched[key] = _deepCopy(base[key]);
     }
     return patched
 }
@@ -113,17 +113,6 @@ export function patchStringified(base: (string | Array<any> | any), diff: IDiffE
     } else {
         return patchStringifiedObject(base, diff, level);
     }
-}
-
-function entriesAfter(remainingKeys: string[], ops: { [key: string]: IDiffEntry},
-                      isAddition?: boolean): boolean {
-    let cop = isAddition !== false ? DiffOp.REMOVE : DiffOp.ADD;
-    for (let key of remainingKeys) {
-        if (key in ops && ops[key].op !== cop) {
-            return true;
-        }
-    }
-    return false;
 }
 
 function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number) : PatchResult {
@@ -150,33 +139,33 @@ function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number)
         op_keys.push(d.key as string);
         ops[d.key as string] = d;
     }
-    var all_keys = getAllKeys(base, op_keys);
+    var all_keys = _getAllKeys(base, op_keys);
     
     for (;;) {
         let key = all_keys.shift();
         if (key === undefined){
             break;
         }
-        let keyString = makeKeyString(key, level + 1);
-        if (valueIn(key, op_keys)) {
+        let keyString = _makeKeyString(key, level + 1);
+        if (_valueIn(key, op_keys)) {
             // Entry has a change
             let e = ops[key];
             let op = e.op;
             
-            if (valueIn(op, [DiffOp.ADD, DiffOp.REPLACE, DiffOp.REMOVE])) {
-                if (valueIn(op, [DiffOp.ADD, DiffOp.REPLACE])) {
+            if (_valueIn(op, [DiffOp.ADD, DiffOp.REPLACE, DiffOp.REMOVE])) {
+                if (_valueIn(op, [DiffOp.ADD, DiffOp.REPLACE])) {
                     let valr = stringify((e as IDiffAdd).value, level + 1, false) + postfix;
                     let length = keyString.length + valr.length;
-                    if (!entriesAfter(all_keys, ops, true)) {
+                    if (!_entriesAfter(all_keys, ops, true)) {
                         length -= postfix.length - 1; // Newline will still be included
                     }
                     additions.push(new DiffRangeRaw(remote.length, length));
                     remote += keyString + valr;
                 }
-                if (valueIn(op, [DiffOp.REMOVE, DiffOp.REPLACE])) {
+                if (_valueIn(op, [DiffOp.REMOVE, DiffOp.REPLACE])) {
                     let valb = stringify(map[key], level + 1, false) + postfix;
                     let length = keyString.length + valb.length;
-                    if (!entriesAfter(all_keys, ops, false)) {
+                    if (!_entriesAfter(all_keys, ops, false)) {
                         length -= postfix.length - 1; // Newline will still be included
                     }
                     deletions.push(new DiffRangeRaw(baseIndex, length));
@@ -188,7 +177,7 @@ function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number)
                 // Insert key string:
                 valr = keyString + valr.slice((level + 1) * JSON_INDENT.length) + postfix;
                 let offset = remote.length + keyString.length - (level + 1) * JSON_INDENT.length;
-                offsetRanges(offset, pd.additions, pd.deletions);
+                _offsetRanges(offset, pd.additions, pd.deletions);
                 remote += valr;
                 additions = additions.concat(pd.additions);
                 deletions = deletions.concat(pd.deletions);
@@ -211,7 +200,7 @@ function patchStringifiedObject(base: Object, diff: IDiffEntry[], level: number)
     }
     let indent = repeat_string(JSON_INDENT, level);
     remote = indent + "{\n" + remote + "\n" + indent + "}";
-    offsetRanges(indent.length + 2, additions, deletions);
+    _offsetRanges(indent.length + 2, additions, deletions);
     return {remote: remote, additions: additions, deletions: deletions};
 }
 
@@ -259,7 +248,7 @@ function patchStringifiedList(base: Array<any>, diff: IDiffEntry[], level: numbe
             skip = 1;
             
             let val = pd.remote + postfix;
-            offsetRanges(remote.length, pd.additions, pd.deletions);
+            _offsetRanges(remote.length, pd.additions, pd.deletions);
             additions = additions.concat(pd.additions);
             deletions = deletions.concat(pd.deletions);
             baseIndex += stringify(base[index], level + 1).length;
@@ -283,7 +272,7 @@ function patchStringifiedList(base: Array<any>, diff: IDiffEntry[], level: numbe
     }
     let indent = repeat_string(JSON_INDENT, level);
     remote = indent + "[\n" + remote + "\n" + indent + "]";
-    offsetRanges(indent.length + 2, additions, deletions);
+    _offsetRanges(indent.length + 2, additions, deletions);
     return {remote: remote, additions: additions, deletions: deletions};
 }
 
@@ -329,10 +318,10 @@ function patchString(base: string, diff: IDiffEntry[], level: number) : PatchRes
         // This string is part of a hierachical structure: output data in JSON format
         remote = stringify(remote, level);
         // Shift all indices by indentation + one to account for opening quote
-        offsetRanges(level * JSON_INDENT.length + 1, additions, deletions);
+        _offsetRanges(level * JSON_INDENT.length + 1, additions, deletions);
         // Offset ranges by JSON escaping
-        adjustRangesByJSONEscapes(remote, additions);
-        adjustRangesByJSONEscapes(base, deletions);
+        _adjustRangesByJSONEscapes(remote, additions);
+        _adjustRangesByJSONEscapes(base, deletions);
     }
     return {remote: remote, additions: additions, deletions: deletions};
 }
@@ -353,10 +342,29 @@ export function stringify(values: string | any[] | { [key: string] : any},
 
 // Utility functions and variables:
 
-function _indent(str: string, levels: number, indentFirst?: boolean) : string {
-    if (indentFirst === undefined) {
-        indentFirst = true;
+/**
+ * Function that checks whether any dict entries will remain after 
+ * applying the given ops. 
+ */
+function _entriesAfter(remainingKeys: string[], ops: { [key: string]: IDiffEntry},
+                      isAddition?: boolean): boolean {
+    let cop = isAddition !== false ? DiffOp.REMOVE : DiffOp.ADD;
+    for (let key of remainingKeys) {
+        if (key in ops && ops[key].op !== cop) {
+            return true;
+        }
     }
+    return false;
+}
+
+/**
+ * Indent a (multiline) string with `JSON_INDENT` given number of times.
+ * 
+ * indentFirst controls whether the first line is indented as well, and
+ * defaults to true.
+ */
+function _indent(str: string, levels: number, indentFirst?: boolean) : string {
+    indentFirst = indentFirst !== false;
     let lines = str.split('\n');
     var ret: string[] = new Array(lines.length);
     if (!indentFirst) {
@@ -368,12 +376,7 @@ function _indent(str: string, levels: number, indentFirst?: boolean) : string {
     return ret.join('\n');
 }
 
-
-var isArray = Array.isArray || function (x) {
-    return {}.toString.call(x) === '[object Array]';
-};
-
-var objectKeys = Object.keys || function (obj) {
+var _objectKeys = Object.keys || function (obj) {
     var has = Object.prototype.hasOwnProperty || function () { return true };
     var keys: any[] = [];
     for (var key in obj) {
@@ -382,23 +385,30 @@ var objectKeys = Object.keys || function (obj) {
     return keys;
 };
 
-function onlyUnique(value: any, index: any, self: any) { 
+/** Filter function for _getAllKeys */
+function _onlyUnique(value: any, index: any, self: any) { 
     return self.indexOf(value) === index;
 }
 
-function getAllKeys(obj: Object, diffKeys: string[]){
-    return objectKeys(obj).concat(diffKeys).filter(onlyUnique).sort();
+/**
+ * Get all unique keys that are either in `obj`, `diffKeys` or both.
+ * Returned as a sorted list.
+ */
+function _getAllKeys(obj: Object, diffKeys: string[]){
+    return _objectKeys(obj).concat(diffKeys).filter(_onlyUnique).sort();
 }
 
-function valueIn(value: any, array: Array<any>) {
+function _valueIn(value: any, array: Array<any>) {
     return array.indexOf(value) >= 0;
 }
 
-function makeKeyString(key: string, level: number) {
+/** Make a string for a stringified dict key, with indentation */
+function _makeKeyString(key: string, level: number) {
     return repeat_string(JSON_INDENT, level) + "\"" + key + "\": ";
 }
 
-function offsetRanges(offset: number, additions: DiffRangeRaw[], deletions: DiffRangeRaw[]) {
+/** Shift all positions in given ranges by same amount */
+function _offsetRanges(offset: number, additions: DiffRangeRaw[], deletions: DiffRangeRaw[]) {
     for (var a of additions) {
         a.offset(offset);
     }
@@ -407,15 +417,24 @@ function offsetRanges(offset: number, additions: DiffRangeRaw[], deletions: Diff
     }
 }
 
-function adjustRangesByJSONEscapes(jsonString: string, ranges: DiffRangeRaw[]) {
+/**
+ * Adjust diff ranges to compensate for increased length occupied by characters
+ * escaped during JSON stringification.
+ */
+function _adjustRangesByJSONEscapes(jsonString: string, ranges: DiffRangeRaw[]) {
     // First find all escaped characters, and expansion coefficients
-    var escapes = ["\\\"", "\\\\", "\\/", "\\b", "\\f", "\\n", "\\r", "\\t"];
+    var simpleEscapes = [
+        "\\\"", "\\\\", "\\/", "\\b", "\\f", "\\n", "\\r", "\\t"];
     var unicodes = /\\u\d{4}/g;
+    const SIMPLE_ESCAPE_LENGTH = 2;
+    const UNICODE_ESCAPE_LENGTH = 6;
     
+    // Equal sized arrays identifying location and expansion 
+    // factor of each escaped character:
     var indices: number[] = [];
     var expansions: number[] = [];
     
-    for (var e of escapes) {
+    for (var e of simpleEscapes) {
         var len = JSON.parse("\"" + e + "\"").length as number;
         while (1) {
             i = jsonString.indexOf(e, i);
@@ -423,14 +442,16 @@ function adjustRangesByJSONEscapes(jsonString: string, ranges: DiffRangeRaw[]) {
                 break;
             }
             indices.push(i);
-            expansions.push(2 - len);
+            expansions.push(SIMPLE_ESCAPE_LENGTH - len);
             i++;
         }
     }
     let match: RegExpExecArray;
-    while ((match = unicodes.exec(jsonString)) != null) {
+    while ((match = unicodes.exec(jsonString)) !== null) {
         indices.push(match.index);
-        expansions.push(6 - JSON.parse("\"" + match[0] + "\"").length);
+        expansions.push(
+            UNICODE_ESCAPE_LENGTH - 
+            JSON.parse("\"" + match[0] + "\"").length);
     }
     
     // Now adjust differences
@@ -448,20 +469,23 @@ function adjustRangesByJSONEscapes(jsonString: string, ranges: DiffRangeRaw[]) {
     }
 }
 
-function deepCopy(obj) {
+/**
+ * Deepcopy for JSON-able data types
+ */
+function _deepCopy(obj) {
   if (typeof obj == 'object') {
     if (obj instanceof Array) {
       var l = obj.length;
       var o = new Array(l);
       for (var i = 0; i < l; i++) {
-        o[i] = deepCopy(obj[i]);
+        o[i] = _deepCopy(obj[i]);
       }
       return o;
     } else {
       var r: any = {};
       r.prototype = obj.prototype;
       for (var k in obj) {
-        r[k] = deepCopy(obj[k]);
+        r[k] = _deepCopy(obj[k]);
       }
       return r;
     }

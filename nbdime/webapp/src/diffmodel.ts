@@ -240,15 +240,7 @@ export class DirectDiffModel extends StringDiffModel {
     }
 }
 
-export interface IOutputDiffModel extends IDiffModel {  
-    base: IOutput;
-    remote: IOutput;
-    
-    stringify(key?: string) : IStringDiffModel;
-}
-
-
-export class OutputDiffModel implements IOutputDiffModel {
+export class OutputDiffModel {
     constructor(
             public base: IOutput,
             remote: IOutput,
@@ -339,6 +331,7 @@ export class OutputDiffModel implements IOutputDiffModel {
 }
 
 
+// CellDiffModels
 
 export interface ICellDiffModel {
     source: IDiffModel;
@@ -349,13 +342,7 @@ export interface ICellDiffModel {
     added: boolean;
     deleted: boolean;
 }
-
-
-
-/**
- * CellDiffModel
- */
-export class BaseCellDiffModel implements ICellDiffModel {
+export class BaseCellDiffModel {
 
     get unchanged(): boolean {
         let unchanged = this.source.unchanged;
@@ -472,6 +459,7 @@ export class DeletedCellDiffModel extends BaseCellDiffModel {
     }
 }
 
+
 function makeOutputModels(base: IOutput[], remote: IOutput[],
         diff?: IDiffEntry[]) : IDiffModel[] {
     let models: IDiffModel[] = [];
@@ -533,16 +521,11 @@ function makeOutputModels(base: IOutput[], remote: IOutput[],
 }
 
 
-export interface INotebookDiffModel {
-    metadata: IDiffModel;
-    mimetype: string;
-    cells: ICellDiffModel[];
-}
 
 /**
  * NotebookDiffModel
  */
-export class NotebookDiffModel implements INotebookDiffModel {
+export class NotebookDiffModel {
     constructor(base: INotebookContent, diff: IDiffEntry[]) {
         let metaDiff = get_diff_key(diff, "metadata");
         this.metadata = (base.metadata || metaDiff) ? new PatchDiffModel(base.metadata, metaDiff) : null;
