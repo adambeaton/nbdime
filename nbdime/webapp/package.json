@@ -9,11 +9,11 @@
     "postinstall": "npm dedupe",
     "update": "rimraf node_modules/jupyter-nbdime && npm install",
 
-    "test": "npm run build:test && npm run test:firefox",
-    "test:chrome": "karma start --browsers=Chrome test/karma.conf.js",
-    "test:debug": "karma start --browsers=Chrome --singleRun=false --debug=true test/karma.conf.js",
-    "test:firefox": "karma start --browsers=Firefox test/karma.conf.js",
-    "test:ie": "karma start --browsers=IE test/karma.conf.js"
+    "test": "npm run test:firefox",
+    "test:chrome": "npm run build:test && karma start --browsers=Chrome test/karma.conf.js",
+    "test:debug": "npm run build:test && karma start --browsers=Chrome --singleRun=false --debug=true test/karma.conf.js",
+    "test:firefox": "npm run build:test && karma start --browsers=Firefox test/karma.conf.js",
+    "test:ie": "npm run build:test && karma start --browsers=IE test/karma.conf.js"
   },
   "devDependencies": {
     "concurrently": "^2.0.0",
