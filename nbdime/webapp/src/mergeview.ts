@@ -94,8 +94,9 @@ class DiffView {
         var origState = {from: 0, to: 0, marked: []};
         var debounceChange, updatingFast = false;
         var self: DiffView = this;
+        var updating = false;
         function update(mode?: string) {
-            self.updating = true;
+            updating = true;
             updatingFast = false;
             if (mode == "full") {
                 if (self.copyButtons) clear(self.copyButtons);
@@ -110,8 +111,8 @@ class DiffView {
                     origState, DIFF_OP.DIFF_DELETE);
             }
 
-            self.alignChunks();
-            self.updating = false;
+            self.alignChunks(true);
+            updating = false;
         }
         function setDealign(fast) {
             if (updating) return;
@@ -119,11 +120,17 @@ class DiffView {
             set(fast);
         }
         function set(fast) {
-            if (self.updating || updatingFast) return;
+            if (updating || updatingFast) return;
             clearTimeout(debounceChange);
             if (fast === true) updatingFast = true;
             debounceChange = setTimeout(update, fast === true ? 20 : 250);
         }
+        function change(_cm, change) {
+            // Update faster when a line was added/removed
+            setDealign(change.text.length - 1 != change.to.line - change.from.line);
+        }
+        this.edit.on("change", change);
+        this.orig.on("change", change);
         this.edit.on("markerAdded", setDealign);
         this.edit.on("markerCleared", setDealign);
         this.orig.on("markerAdded", setDealign);
@@ -176,8 +183,13 @@ class DiffView {
         if (!this.lockScroll) return;
         // editor: What triggered event, other: What needs to be synced
         var editor, other, now = +new Date;
-        if (type == EventDirection.OUTGOING) { editor = this.edit; other = this.orig; }
-        else { editor = this.orig; other = this.edit; }
+        if (type == EventDirection.OUTGOING) {
+            editor = this.edit;
+            other = this.orig;
+        } else {
+            editor = this.orig;
+            other = this.edit;
+        }
         
         if (editor.state.scrollSetBy === this) {
             editor.state.scrollSetBy = null;
@@ -188,10 +200,17 @@ class DiffView {
         other.state.scrollPosition = editor.getScrollInfo();
         
         // If ticking, we already have a scroll queued
-        if (other.state.scrollTicking) return;
+        if (other.state.scrollTicking) {
+            return;
+        }
+        other.state.scrollTicking = true;
+
         var sInfo = other.getScrollInfo();
         // Don't queue an event if already synced.
-        if (other.state.scrollPosition.top == sInfo.top && other.state.scrollPosition.left == sInfo.left) return;
+        if (other.state.scrollPosition.top == sInfo.top && 
+                other.state.scrollPosition.left == sInfo.left) {
+            return;
+        }
         // Throttle by requestAnimationFrame().
         // If event is outgoing, this will lead to a one frame delay of other DiffViews
         var self = this;
@@ -200,7 +219,6 @@ class DiffView {
             other.state.scrollTicking = false;
             other.state.scrollSetBy = self;
         });
-        other.state.scrollTicking = true;
         return;
     }
 
@@ -247,7 +265,6 @@ class DiffView {
     classes: DiffClasses;
     showDifferences: boolean;
     dealigned: boolean;
-    updating: boolean;
     forceUpdate: Function;
     orig: CodeMirror.Editor;
     edit: CodeMirror.Editor;
@@ -578,11 +595,17 @@ class MergeView {
         };
         
         // All editors should have an operation (simultaneously),
-        // so set up nested operation calls. Comment out for easier debugging
-        /*if (!this.base.curOp) f = function(fn) { return function() { this.base.operation(fn) } }(f);
+        // so set up nested operation calls.
+        if (!this.base.curOp) {
+            f = function(fn) { 
+                return function() { self.base.operation(fn) } 
+            }(f);
+        }
         for (let dv of this.diffViews) {
-            if (!dv.orig.curOp) f = function(fn) { return function() { dv.orig.operation(fn) } }(f);
-        }*/
+            if (!dv.orig.curOp) f = function(fn) { 
+                return function() { dv.orig.operation(fn) }
+            }(f);
+        }
         // Perform alignment
         f();
     }
