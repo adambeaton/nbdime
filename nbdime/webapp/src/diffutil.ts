@@ -4,7 +4,7 @@
 
 import * as CodeMirror from 'codemirror';
 
-export const JSON_INDENT = "    ";
+export const JSON_INDENT = "  ";
 
 export function repeat_string(str: string, count: number): string {
     if (count < 1) return '';
