@@ -9,3 +9,15 @@ htmlcov
 .cache
 
 .spyderproject
+nbdime/webapp/node_modules/
+nbdime/webapp/build/
+nbdime/webapp/test/build/
+
+nbdime/webapp/static/bundle.js
+
+nbdime/webapp/static/bundle.js.map
+
+nbdime/webapp/static/1.bundle.js.map
+
+nbdime/webapp/static/1.bundle.js
+nbdim/webapp/archive
