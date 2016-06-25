@@ -203,7 +203,6 @@ class DiffView {
         if (other.state.scrollTicking) {
             return;
         }
-        other.state.scrollTicking = true;
 
         var sInfo = other.getScrollInfo();
         // Don't queue an event if already synced.
@@ -219,6 +218,7 @@ class DiffView {
             other.state.scrollTicking = false;
             other.state.scrollSetBy = self;
         });
+        other.state.scrollTicking = true;
         return;
     }
 
