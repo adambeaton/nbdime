@@ -365,7 +365,7 @@ function _entriesAfter(remainingKeys: string[], ops: { [key: string]: IDiffEntry
                       isAddition?: boolean): boolean {
     let cop = isAddition !== false ? DiffOp.REMOVE : DiffOp.ADD;
     for (let key of remainingKeys) {
-        if (key in ops && ops[key].op !== cop) {
+        if (!(key in ops) || ops[key].op !== cop) {
             return true;
         }
     }
